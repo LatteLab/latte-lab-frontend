@@ -8,7 +8,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Protected routes that require authentication
-  const protectedRoutes = ['/admin', '/app'];
+  const protectedRoutes = ['/admin', '/user'];
   const isProtectedRoute = protectedRoutes.some(route =>
     pathname.startsWith(route)
   );
@@ -25,10 +25,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Redirect to app if accessing auth routes while logged in
+  // Redirect to user dashboard if accessing auth routes while logged in
   if (isAuthRoute && user) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = '/app';
+    redirectUrl.pathname = '/user';
     return NextResponse.redirect(redirectUrl);
   }
 
@@ -46,7 +46,7 @@ export async function proxy(request: NextRequest) {
 
     if (!adminCheck) {
       const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = '/app';
+      redirectUrl.pathname = '/user';
       return NextResponse.redirect(redirectUrl);
     }
   }

@@ -43,7 +43,7 @@ export function LoginForm() {
       if (error) throw error;
 
       toast.success('Logged in successfully!');
-      router.push('/app');
+      router.push('/user');
       router.refresh();
     } catch (error: any) {
       toast.error(error.message || 'Failed to log in');

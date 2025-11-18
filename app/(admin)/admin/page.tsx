@@ -21,7 +21,7 @@ export default async function AdminPage() {
     .single();
 
   if (!adminCheck) {
-    redirect('/app');
+    redirect('/user');
   }
 
   const { data: users } = await supabase

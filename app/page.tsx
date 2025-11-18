@@ -5,9 +5,9 @@ export default async function Home() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // If user is authenticated, redirect to /app
+  // If user is authenticated, redirect to /user
   if (user) {
-    redirect('/app');
+    redirect('/user');
   }
 
   // If not authenticated, redirect to login
