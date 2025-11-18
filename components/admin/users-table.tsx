@@ -17,7 +17,11 @@ export function AdminUsersTable({ initialUsers }: { initialUsers: User[] }) {
                   ID: {user.id}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Joined: {new Date(user.created_at).toLocaleDateString()}
+                  Joined: {user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  }) : 'N/A'}
                 </p>
               </div>
             </div>
