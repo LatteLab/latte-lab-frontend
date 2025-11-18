@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { AdminUsersTable } from '@/components/admin/users-table';
 import { AdminWhitelistManager } from '@/components/admin/whitelist-manager';
+import { isAdmin, getAllUsers, getAdminWhitelist } from '@/lib/db';
+import { PageHeader } from '@/components/ui/page-header';
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -14,47 +16,38 @@ export default async function AdminPage() {
   }
 
   // Check if user is admin by looking up their email in the whitelist
-  const { data: adminCheck } = await supabase
-    .from('admin_whitelist')
-    .select('id')
-    .eq('email', user.email)
-    .single();
+  const adminStatus = await isAdmin(user.email!);
 
-  if (!adminCheck) {
+  if (!adminStatus) {
     redirect('/user');
   }
 
-  const { data: users } = await supabase
-    .from('users')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  const { data: whitelist } = await supabase
-    .from('admin_whitelist')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const users = await getAllUsers();
+  const whitelist = await getAdminWhitelist();
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <h1 className="text-3xl font-bold">Admin Panel</h1>
+    <>
+      <PageHeader title="Admin Panel" showSidebarTrigger />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Admin Whitelist</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AdminWhitelistManager initialWhitelist={whitelist || []} />
-        </CardContent>
-      </Card>
+      <div className="flex flex-1 flex-col gap-4 p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Admin Whitelist</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AdminWhitelistManager initialWhitelist={whitelist} />
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Users</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AdminUsersTable initialUsers={users || []} />
-        </CardContent>
-      </Card>
-    </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Users</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AdminUsersTable initialUsers={users} />
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }

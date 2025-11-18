@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import { signOut } from '@/app/actions/auth';
+import { isAdmin as checkIsAdmin } from '@/lib/db';
 
 export default async function AppPage() {
   const supabase = await createClient();
@@ -15,19 +16,7 @@ export default async function AppPage() {
   }
 
   // Check if user is admin by looking up their email in the whitelist
-  const { data: adminCheck, error: adminError } = await supabase
-    .from('admin_whitelist')
-    .select('id')
-    .eq('email', user.email)
-    .single();
-
-  const isAdmin = !!adminCheck;
-
-  // Debug info
-  console.log('User email:', user.email);
-  console.log('Admin check data:', adminCheck);
-  console.log('Admin check error:', adminError);
-  console.log('Is admin:', isAdmin);
+  const isAdmin = await checkIsAdmin(user.email!);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -45,14 +34,6 @@ export default async function AppPage() {
         <CardContent className="space-y-2">
           <p>User ID: {user.id}</p>
           <p>Admin Status: {isAdmin ? 'Yes' : 'No'}</p>
-
-          {/* Debug info */}
-          <div className="mt-4 p-4 bg-muted rounded-lg text-sm space-y-1">
-            <p className="font-semibold">Debug Info:</p>
-            <p>Email from auth: {user.email}</p>
-            <p>Admin check result: {adminCheck ? JSON.stringify(adminCheck) : 'null'}</p>
-            <p>Admin check error: {adminError ? JSON.stringify(adminError) : 'none'}</p>
-          </div>
 
           {isAdmin && (
             <Link href="/admin">

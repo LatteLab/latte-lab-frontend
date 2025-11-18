@@ -1,34 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { addAdminEmail, removeAdminEmail } from '@/app/actions/admin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import type { AdminWhitelist } from '@/lib/db/schema';
+import type { AdminWhitelist } from '@/lib/db';
 
 export function AdminWhitelistManager({ initialWhitelist }: { initialWhitelist: AdminWhitelist[] }) {
   const [whitelist, setWhitelist] = useState(initialWhitelist);
   const [newEmail, setNewEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const supabase = createClient();
 
-  const addEmail = async () => {
+  const handleAddEmail = async () => {
     if (!newEmail) return;
 
     setLoading(true);
     try {
-      // Trim whitespace and newlines from email
-      const cleanEmail = newEmail.trim();
-
-      const { data, error } = await supabase
-        .from('admin_whitelist')
-        .insert({ email: cleanEmail })
-        .select()
-        .single();
-
-      if (error) throw error;
-
+      const data = await addAdminEmail(newEmail);
       setWhitelist([data, ...whitelist]);
       setNewEmail('');
       toast.success('Email added to whitelist');
@@ -39,15 +28,9 @@ export function AdminWhitelistManager({ initialWhitelist }: { initialWhitelist: 
     }
   };
 
-  const removeEmail = async (id: string) => {
+  const handleRemoveEmail = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('admin_whitelist')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
+      await removeAdminEmail(id);
       setWhitelist(whitelist.filter(item => item.id !== id));
       toast.success('Email removed from whitelist');
     } catch (error: any) {
@@ -65,7 +48,7 @@ export function AdminWhitelistManager({ initialWhitelist }: { initialWhitelist: 
           onChange={(e) => setNewEmail(e.target.value)}
           disabled={loading}
         />
-        <Button onClick={addEmail} disabled={loading || !newEmail}>
+        <Button onClick={handleAddEmail} disabled={loading || !newEmail}>
           {loading ? 'Adding...' : 'Add'}
         </Button>
       </div>
@@ -80,7 +63,7 @@ export function AdminWhitelistManager({ initialWhitelist }: { initialWhitelist: 
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => removeEmail(item.id)}
+                onClick={() => handleRemoveEmail(item.id)}
               >
                 Remove
               </Button>
