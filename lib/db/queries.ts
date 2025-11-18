@@ -1,6 +1,6 @@
 import { db } from './index';
 import { adminWhitelist, users } from './schema';
-import { eq } from 'drizzle-orm';
+import { eq, gte, desc } from 'drizzle-orm';
 import type { AdminWhitelist, User, NewUser } from './schema';
 
 // ============================================================================
@@ -101,4 +101,72 @@ export async function createUser(data: NewUser): Promise<User> {
     .returning();
 
   return user;
+}
+
+// ============================================================================
+// Dashboard Analytics Queries
+// ============================================================================
+
+/**
+ * Get the most recent N users
+ */
+export async function getRecentUsers(limit: number = 5): Promise<User[]> {
+  return await db
+    .select()
+    .from(users)
+    .orderBy(desc(users.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Get users who joined within the last N days
+ */
+export async function getUsersFromLastDays(days: number): Promise<User[]> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+
+  return await db
+    .select()
+    .from(users)
+    .where(gte(users.createdAt, cutoffDate));
+}
+
+/**
+ * Get dashboard statistics
+ */
+export async function getDashboardStats() {
+  const allUsers = await getAllUsers();
+  const allAdmins = await getAdminWhitelist();
+
+  // Calculate date ranges
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - 7);
+
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+  // Count users by time period
+  const usersThisWeek = allUsers.filter(
+    user => user.createdAt && new Date(user.createdAt) >= startOfWeek
+  ).length;
+
+  const usersThisMonth = allUsers.filter(
+    user => user.createdAt && new Date(user.createdAt) >= startOfMonth
+  ).length;
+
+  const usersLastMonth = allUsers.filter(
+    user => user.createdAt &&
+    new Date(user.createdAt) >= startOfLastMonth &&
+    new Date(user.createdAt) <= endOfLastMonth
+  ).length;
+
+  return {
+    totalUsers: allUsers.length,
+    totalAdmins: allAdmins.length,
+    usersThisWeek,
+    usersThisMonth,
+    usersLastMonth,
+  };
 }
