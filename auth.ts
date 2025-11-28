@@ -18,6 +18,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           access_type: 'offline',
@@ -30,6 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     //   clientId: process.env.AUTH_OKTA_ID,
     //   clientSecret: process.env.AUTH_OKTA_SECRET,
     //   issuer: process.env.AUTH_OKTA_ISSUER,
+    //   allowDangerousEmailAccountLinking: true,
     // }),
     Resend({
       apiKey: process.env.AUTH_RESEND_KEY,
