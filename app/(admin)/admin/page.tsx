@@ -89,7 +89,7 @@ export default async function AdminDashboard() {
                 </div>
               )}
               <div className="mt-4">
-                <Link href="/users">
+                <Link href="/admin/users">
                   <Button variant="outline" className="w-full">View All Users</Button>
                 </Link>
               </div>
@@ -102,13 +102,13 @@ export default async function AdminDashboard() {
               <CardDescription>Common administrative tasks</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Link href="/users">
+              <Link href="/admin/users">
                 <Button variant="outline" className="w-full justify-start">
                   <Users className="mr-2 h-4 w-4" />
                   Manage Users
                 </Button>
               </Link>
-              <Link href="/users">
+              <Link href="/admin/users">
                 <Button variant="outline" className="w-full justify-start">
                   <Shield className="mr-2 h-4 w-4" />
                   Admin Whitelist

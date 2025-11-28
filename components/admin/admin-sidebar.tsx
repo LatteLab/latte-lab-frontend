@@ -25,7 +25,7 @@ const navItems = [
   },
   {
     title: "Users",
-    url: "/users",
+    url: "/admin/users",
     icon: Users,
   },
 ];
