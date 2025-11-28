@@ -23,7 +23,7 @@ export function OAuthButtons() {
       <Button
         type="button"
         variant="outline"
-        className="w-full h-12 font-medium bg-background/50 border-border/60 hover:bg-accent/50 hover:border-border transition-all"
+        className="w-full h-12 font-medium bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 transition-all"
         onClick={() => handleOAuthSignIn('google')}
         disabled={loadingProvider !== null}
       >
@@ -62,7 +62,7 @@ export function OAuthButtons() {
       <Button
         type="button"
         variant="outline"
-        className="w-full h-12 font-medium bg-background/50 border-border/60 hover:bg-accent/50 hover:border-border transition-all"
+        className="w-full h-12 font-medium bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 transition-all"
         onClick={() => handleOAuthSignIn('okta')}
         disabled={loadingProvider !== null}
       >
