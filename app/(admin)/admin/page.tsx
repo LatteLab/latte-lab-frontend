@@ -108,7 +108,7 @@ export default async function AdminDashboard() {
                   Manage Users
                 </Button>
               </Link>
-              <Link href="/admin/users">
+              <Link href="/admin/settings">
                 <Button variant="outline" className="w-full justify-start">
                   <Shield className="mr-2 h-4 w-4" />
                   Admin Whitelist
