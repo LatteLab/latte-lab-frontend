@@ -3,6 +3,7 @@
 import { LayoutDashboard, Users, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import {
   Sidebar,
   SidebarContent,
@@ -15,8 +16,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-import { signOut } from "@/app/actions/auth";
 
 const navItems = [
   {
@@ -34,8 +33,8 @@ const navItems = [
 export function AdminSidebar() {
   const pathname = usePathname();
 
-  const handleSignOut = async () => {
-    await signOut();
+  const handleSignOut = () => {
+    signOut({ callbackUrl: '/login' });
   };
 
   return (

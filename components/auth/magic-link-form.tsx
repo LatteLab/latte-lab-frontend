@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/client';
+import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -20,7 +20,6 @@ export function MagicLinkForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [sentEmail, setSentEmail] = useState('');
-  const supabase = createClient();
 
   const {
     register,
@@ -34,14 +33,15 @@ export function MagicLinkForm() {
   const onSubmit = async (data: MagicLinkFormData) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      const result = await signIn('resend', {
         email: data.email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+        redirect: false,
+        callbackUrl: '/user',
       });
 
-      if (error) throw error;
+      if (result?.error) {
+        throw new Error(result.error);
+      }
 
       setSentEmail(data.email);
       setEmailSent(true);

@@ -1,7 +1,8 @@
 import { MagicLinkForm } from '@/components/auth/magic-link-form';
-import { GoogleSignIn } from '@/components/auth/google-sign-in';
+import { OAuthButtons } from '@/components/auth/oauth-buttons';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CheckCircle2 } from 'lucide-react';
 
 function Divider({ text }: { text: string }) {
   return (
@@ -16,7 +17,15 @@ function Divider({ text }: { text: string }) {
   );
 }
 
-export default function LoginPage() {
+interface LoginPageProps {
+  searchParams: Promise<{ verify?: string; error?: string; callbackUrl?: string }>;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams;
+  const showVerifyMessage = params.verify === 'true';
+  const error = params.error;
+
   return (
     <div className="flex min-h-screen items-center justify-center p-4 bg-gradient-to-br from-zinc-50 via-zinc-100 to-zinc-200 dark:from-zinc-950 dark:via-zinc-900 dark:to-black">
       <div className="w-full max-w-md space-y-8">
@@ -31,6 +40,33 @@ export default function LoginPage() {
           <p className="text-muted-foreground text-lg">Welcome</p>
         </div>
 
+        {/* Verify Message */}
+        {showVerifyMessage && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="h-5 w-5 text-primary" />
+                <p className="text-sm text-foreground">
+                  Check your email for a sign-in link
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <Card className="border-destructive/20 bg-destructive/5">
+            <CardContent className="pt-6">
+              <p className="text-sm text-destructive">
+                {error === 'OAuthAccountNotLinked'
+                  ? 'This email is already associated with another account. Please sign in with the original provider.'
+                  : 'An error occurred during sign in. Please try again.'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Auth Card */}
         <Card className="border-0 shadow-xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-4">
@@ -40,8 +76,8 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pb-6">
-            {/* Google Sign In */}
-            <GoogleSignIn />
+            {/* OAuth Providers (Google & Okta) */}
+            <OAuthButtons />
 
             <Divider text="or" />
 
