@@ -22,8 +22,7 @@ export default auth((req) => {
   }
 
   // Admin routes protection
-  const adminRoutes = ['/admin', '/users'];
-  const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route));
+  const isAdminRoute = pathname.startsWith('/admin');
 
   if (isAdminRoute && !req.auth?.user?.isAdmin) {
     return NextResponse.redirect(new URL('/user', req.url));
