@@ -1,6 +1,6 @@
 'use client';
 
-import { LayoutDashboard, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, LogOut, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -27,6 +27,11 @@ const navItems = [
     title: "Users",
     url: "/admin/users",
     icon: Users,
+  },
+  {
+    title: "Settings",
+    url: "/admin/settings",
+    icon: Settings,
   },
 ];
 
