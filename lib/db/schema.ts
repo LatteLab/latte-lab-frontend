@@ -1,5 +1,16 @@
-import { pgTable, text, timestamp, uuid, primaryKey, integer } from 'drizzle-orm/pg-core';
+import { pgTable, pgEnum, text, timestamp, uuid, primaryKey, integer, real, unique } from 'drizzle-orm/pg-core';
 import type { AdapterAccountType } from 'next-auth/adapters';
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+export const eventTypeEnum = pgEnum('event_type', ['waitlist', 'lottery']);
+export const eventStatusEnum = pgEnum('event_status', ['draft', 'open', 'closed', 'completed']);
+export const registrationStatusEnum = pgEnum('registration_status', [
+  'registered', 'waitlisted', 'lottery_entered', 'selected', 'rejected', 'checked_in', 'no_show'
+]);
+export const lotteryOutcomeEnum = pgEnum('lottery_outcome', ['won', 'lost']);
 
 // ============================================================================
 // NextAuth Required Tables
@@ -12,6 +23,13 @@ export const users = pgTable('users', {
   email: text('email').unique(),
   emailVerified: timestamp('email_verified', { mode: 'date' }),
   image: text('image'),
+  major: text('major'),
+  classYear: text('class_year'),
+  phone: text('phone'),
+  interests: text('interests'),
+  semesterStatus: text('semester_status'),
+  bio: text('bio'),
+  location: text('location'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -53,6 +71,46 @@ export const adminWhitelist = pgTable('admin_whitelist', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Events table
+export const events = pgTable('events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  coverImage: text('cover_image'),
+  date: timestamp('date', { mode: 'date' }).notNull(),
+  endDate: timestamp('end_date', { mode: 'date' }),
+  location: text('location'),
+  capacity: integer('capacity').notNull(),
+  type: eventTypeEnum('type').notNull(),
+  lotteryDeadline: timestamp('lottery_deadline', { mode: 'date' }),
+  status: eventStatusEnum('status').notNull().default('draft'),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Event registrations table
+export const eventRegistrations = pgTable('event_registrations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  status: registrationStatusEnum('status').notNull(),
+  lotteryPriorityScore: real('lottery_priority_score'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  userEventUnique: unique().on(table.userId, table.eventId),
+}));
+
+// Lottery history table
+export const lotteryHistory = pgTable('lottery_history', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  outcome: lotteryOutcomeEnum('outcome').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // ============================================================================
 // Type Exports
 // ============================================================================
@@ -64,3 +122,8 @@ export type NewAccount = typeof accounts.$inferInsert;
 export type VerificationToken = typeof verificationTokens.$inferSelect;
 export type AdminWhitelist = typeof adminWhitelist.$inferSelect;
 export type NewAdminWhitelist = typeof adminWhitelist.$inferInsert;
+export type Event = typeof events.$inferSelect;
+export type NewEvent = typeof events.$inferInsert;
+export type EventRegistration = typeof eventRegistrations.$inferSelect;
+export type NewEventRegistration = typeof eventRegistrations.$inferInsert;
+export type LotteryHistory = typeof lotteryHistory.$inferSelect;
