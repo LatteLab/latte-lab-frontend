@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, Users, Coffee, Search, Bell, Settings, Shield, LogOut } from 'lucide-react';
+import { Calendar, Compass, Users, Coffee, Search, Bell, Settings, Shield, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { title: 'Events', url: '/user/events', icon: Calendar },
+  { title: 'Discover', url: '/user/discover', icon: Compass },
   { title: 'Directory', url: '/user/directory', icon: Users },
 ];
 

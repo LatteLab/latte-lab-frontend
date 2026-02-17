@@ -8,6 +8,7 @@
 MVP event management system for Latte Lab with Luma-inspired UI/UX.
 
 **In scope:**
+
 - Waitlist + Lottery event types
 - Member portal: event catalog, event detail, member directory, profile editing
 - Admin: event creation/management, lottery draw, check-in mode, attendance analytics
@@ -16,11 +17,13 @@ MVP event management system for Latte Lab with Luma-inspired UI/UX.
 - Luma-style clean, dark-mode-first design
 
 **Out of scope (deferred):**
+
 - Invitation-only event type
 - Email notifications (Resend)
 - Mailchimp sync
 - QR code check-in
 - Rich text editor for event descriptions
+- Sticky Dates on Timeline Tagging
 
 ---
 
@@ -28,58 +31,58 @@ MVP event management system for Latte Lab with Luma-inspired UI/UX.
 
 ### Extended `users` table (new columns)
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `major` | `varchar(100)` | Nullable, user-editable |
-| `classYear` | `varchar(10)` | e.g. "2026", "G1", "PhD" |
-| `phone` | `varchar(20)` | Nullable |
-| `interests` | `text` | Nullable, free-form |
-| `semesterStatus` | `varchar(50)` | e.g. "Spring 2026 Active" |
-| `bio` | `text` | Nullable |
-| `location` | `varchar(100)` | Nullable |
+| Column             | Type             | Notes                     |
+| ------------------ | ---------------- | ------------------------- |
+| `major`          | `varchar(100)` | Nullable, user-editable   |
+| `classYear`      | `varchar(10)`  | e.g. "2026", "G1", "PhD"  |
+| `phone`          | `varchar(20)`  | Nullable                  |
+| `interests`      | `text`         | Nullable, free-form       |
+| `semesterStatus` | `varchar(50)`  | e.g. "Spring 2026 Active" |
+| `bio`            | `text`         | Nullable                  |
+| `location`       | `varchar(100)` | Nullable                  |
 
 ### `events` table
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `uuid` | PK, default random |
-| `name` | `varchar(255)` | Required |
-| `description` | `text` | Event description |
-| `coverImage` | `text` | URL to uploaded image |
-| `date` | `timestamp` | Event start |
-| `endDate` | `timestamp` | Nullable, event end |
-| `location` | `varchar(255)` | Physical location |
-| `capacity` | `integer` | Max attendees |
-| `type` | `enum('waitlist', 'lottery')` | Registration type |
-| `lotteryDeadline` | `timestamp` | Nullable, only for lottery |
-| `status` | `enum('draft', 'open', 'closed', 'completed')` | Event lifecycle |
-| `createdBy` | `text` | FK to users.id |
-| `createdAt` | `timestamp` | Auto |
-| `updatedAt` | `timestamp` | Auto |
+| Column              | Type                                             | Notes                      |
+| ------------------- | ------------------------------------------------ | -------------------------- |
+| `id`              | `uuid`                                         | PK, default random         |
+| `name`            | `varchar(255)`                                 | Required                   |
+| `description`     | `text`                                         | Event description          |
+| `coverImage`      | `text`                                         | URL to uploaded image      |
+| `date`            | `timestamp`                                    | Event start                |
+| `endDate`         | `timestamp`                                    | Nullable, event end        |
+| `location`        | `varchar(255)`                                 | Physical location          |
+| `capacity`        | `integer`                                      | Max attendees              |
+| `type`            | `enum('waitlist', 'lottery')`                  | Registration type          |
+| `lotteryDeadline` | `timestamp`                                    | Nullable, only for lottery |
+| `status`          | `enum('draft', 'open', 'closed', 'completed')` | Event lifecycle            |
+| `createdBy`       | `text`                                         | FK to users.id             |
+| `createdAt`       | `timestamp`                                    | Auto                       |
+| `updatedAt`       | `timestamp`                                    | Auto                       |
 
 ### `eventRegistrations` table
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `uuid` | PK |
-| `userId` | `text` | FK to users.id |
-| `eventId` | `uuid` | FK to events.id |
-| `status` | `enum` | `registered`, `waitlisted`, `lottery_entered`, `selected`, `rejected`, `checked_in`, `no_show` |
-| `lotteryPriorityScore` | `real` | Nullable, snapshotted at draw time |
-| `createdAt` | `timestamp` | Auto |
-| `updatedAt` | `timestamp` | Auto |
+| Column                   | Type          | Notes                                                                                                        |
+| ------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------ |
+| `id`                   | `uuid`      | PK                                                                                                           |
+| `userId`               | `text`      | FK to users.id                                                                                               |
+| `eventId`              | `uuid`      | FK to events.id                                                                                              |
+| `status`               | `enum`      | `registered`, `waitlisted`, `lottery_entered`, `selected`, `rejected`, `checked_in`, `no_show` |
+| `lotteryPriorityScore` | `real`      | Nullable, snapshotted at draw time                                                                           |
+| `createdAt`            | `timestamp` | Auto                                                                                                         |
+| `updatedAt`            | `timestamp` | Auto                                                                                                         |
 
 Unique constraint on `(userId, eventId)`.
 
 ### `lotteryHistory` table
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `uuid` | PK |
-| `userId` | `text` | FK to users.id |
-| `eventId` | `uuid` | FK to events.id |
-| `outcome` | `enum('won', 'lost')` | Result |
-| `createdAt` | `timestamp` | Auto |
+| Column        | Type                    | Notes           |
+| ------------- | ----------------------- | --------------- |
+| `id`        | `uuid`                | PK              |
+| `userId`    | `text`                | FK to users.id  |
+| `eventId`   | `uuid`                | FK to events.id |
+| `outcome`   | `enum('won', 'lost')` | Result          |
+| `createdAt` | `timestamp`           | Auto            |
 
 No-shows tracked via `eventRegistrations.status = 'no_show'` (no duplication in lottery_history).
 
@@ -90,6 +93,7 @@ No-shows tracked via `eventRegistrations.status = 'no_show'` (no duplication in 
 ### Event Catalog (`/user/events`)
 
 Responsive grid (1/2/3 columns). Each card:
+
 - Cover image (16:9, rounded, hover scale)
 - Date (muted accent, e.g. "SAT, MAR 15"), name (bold, tight tracking), location
 - Status badge: "Open" (green), "Waitlist" (amber), "Lottery Open" (purple), "Lottery Closed" (gray)
@@ -104,6 +108,7 @@ Two-column on desktop, stacking on mobile.
 **Left:** Cover image (square, rounded-2xl), host info.
 
 **Right:**
+
 - Name (text-3xl, font-bold, tight tracking)
 - Date/time with calendar icon
 - Location with map pin
@@ -145,12 +150,14 @@ Table: Name, Date, Type, Status, Registration count. Click to manage.
 Single-page form, Luma-style sidebar layout.
 
 **Sidebar (~320px):**
+
 - Cover image upload (drag-and-drop, dashed border)
 - Event type selector (Waitlist / Lottery radio)
 - Lottery deadline picker (shown when Lottery selected)
 - Status toggle (Draft / Publish)
 
 **Main area:**
+
 - Event name (large borderless input, text-3xl)
 - Date/time pickers (start + optional end)
 - Location input
@@ -164,6 +171,7 @@ Single-page form, Luma-style sidebar layout.
 **Registrations:** Table of all registrations (name, email, status, registered at, priority score for lottery). Admin can remove or change status. For lottery events: "Run Lottery" button.
 
 **Lottery draw flow:**
+
 1. Click "Run Lottery" -> confirmation dialog
 2. Compute priority: 1.0 base + 0.5 per past loss - 1.0 per past no-show
 3. Weighted random selection for N spots (capacity)
@@ -236,6 +244,7 @@ app/
 ## Design Style
 
 Luma-inspired, clean and professional:
+
 - Dark mode default
 - Rounded-2xl corners on cards and images
 - Subtle shadows (`shadow-[0_20px_60px_-2.5px_rgba(0,0,0,0.05)]`)

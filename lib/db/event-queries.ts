@@ -1,6 +1,6 @@
 import { db } from './index';
 import { events, eventRegistrations, lotteryHistory, users } from './schema';
-import { eq, and, desc, gte, lt, ne, sql, count, inArray } from 'drizzle-orm';
+import { eq, and, desc, gte, lt, ne, count, inArray } from 'drizzle-orm';
 import type { Event, NewEvent, EventRegistration } from './schema';
 
 // ============================================================================
@@ -173,6 +173,49 @@ export async function computePriorityScore(userId: string): Promise<number> {
 export async function createLotteryHistoryEntries(entries: { userId: string; eventId: string; outcome: 'won' | 'lost' }[]) {
   if (entries.length === 0) return;
   await db.insert(lotteryHistory).values(entries);
+}
+
+// ============================================================================
+// User Timeline Queries
+// ============================================================================
+
+export async function getUserEvents(userId: string, filter?: 'upcoming' | 'past') {
+  const now = new Date();
+
+  const conditions = [
+    eq(eventRegistrations.userId, userId),
+    ne(events.status, 'draft'),
+  ];
+
+  if (filter === 'upcoming') {
+    conditions.push(gte(events.date, now));
+  } else if (filter === 'past') {
+    conditions.push(lt(events.date, now));
+  }
+
+  const rows = await db.select({
+    event: events,
+    registrationStatus: eventRegistrations.status,
+  })
+    .from(eventRegistrations)
+    .innerJoin(events, eq(eventRegistrations.eventId, events.id))
+    .where(and(...conditions))
+    .orderBy(filter === 'past' ? desc(events.date) : events.date);
+
+  const results = await Promise.all(
+    rows.map(async (row) => {
+      const registeredCount = await getRegistrationCount(row.event.id, [
+        'registered', 'selected', 'checked_in',
+      ]);
+      return {
+        event: row.event,
+        registrationStatus: row.registrationStatus,
+        registeredCount,
+      };
+    })
+  );
+
+  return results;
 }
 
 // ============================================================================
