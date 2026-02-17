@@ -1,6 +1,6 @@
 'use client';
 
-import { LayoutDashboard, Users, LogOut, Settings } from "lucide-react";
+import { LayoutDashboard, Users, LogOut, Settings, Calendar } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -22,6 +22,11 @@ const navItems = [
     title: "Dashboard",
     url: "/admin",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Events",
+    url: "/admin/events",
+    icon: Calendar,
   },
   {
     title: "Users",
@@ -69,7 +74,7 @@ export function AdminSidebar() {
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname === item.url}>
+                  <SidebarMenuButton asChild isActive={pathname === item.url || pathname.startsWith(item.url + '/')}>
                     <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
