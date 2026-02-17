@@ -1,7 +1,6 @@
 import { auth } from '@/auth';
 import { redirect, notFound } from 'next/navigation';
 import { getUserById } from '@/lib/db/queries';
-import { PageHeader } from '@/components/ui/page-header';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mail, Phone, MapPin, GraduationCap, BookOpen } from 'lucide-react';
@@ -15,11 +14,8 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
   if (!user) notFound();
 
   return (
-    <>
-      <PageHeader title="Member Profile" showSidebarTrigger />
-
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl px-4 py-8">
+    <div className="flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-2xl px-4 py-8">
           {/* Header */}
           <div className="flex flex-col items-center text-center mb-8">
             <Avatar className="h-24 w-24 mb-4">
@@ -88,7 +84,6 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
             </Card>
           </div>
         </div>
-      </div>
-    </>
+    </div>
   );
 }

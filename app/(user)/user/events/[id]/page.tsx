@@ -1,7 +1,6 @@
 import { auth } from '@/auth';
 import { redirect, notFound } from 'next/navigation';
 import { getEventById, getUserRegistration, getEventRegistrations, getRegistrationCount } from '@/lib/db/event-queries';
-import { PageHeader } from '@/components/ui/page-header';
 import { EventRegistrationButton } from '@/components/user/event-registration-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar, MapPin, Users, Clock } from 'lucide-react';
@@ -46,11 +45,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   );
 
   return (
-    <>
-      <PageHeader title={event.name} showSidebarTrigger />
-
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-4 py-8">
+    <div className="flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-4xl px-4 py-8">
           <div className="grid gap-8 md:grid-cols-[1fr_1.2fr]">
             {/* Left: Cover image */}
             <div>
@@ -164,7 +160,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             spotsRemaining={spotsRemaining}
           />
         </div>
-      </div>
-    </>
+    </div>
   );
 }

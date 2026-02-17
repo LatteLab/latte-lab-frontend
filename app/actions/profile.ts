@@ -19,6 +19,6 @@ export async function updateProfile(formData: FormData) {
 
   await updateUserProfile(session.user.id, data);
 
-  revalidatePath('/user/profile');
+  revalidatePath('/user/settings');
   revalidatePath('/user/directory');
 }

@@ -1,7 +1,6 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { getAllMembers } from '@/lib/db/event-queries';
-import { PageHeader } from '@/components/ui/page-header';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 
@@ -12,12 +11,10 @@ export default async function DirectoryPage() {
   const members = await getAllMembers();
 
   return (
-    <>
-      <PageHeader title="Member Directory" showSidebarTrigger />
-
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-4 py-6">
-          <div className="grid gap-3 sm:grid-cols-2">
+    <div className="flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <h1 className="mb-8 text-2xl font-bold tracking-tight sm:text-3xl">Member Directory</h1>
+        <div className="grid gap-3 sm:grid-cols-2">
             {members.map((member) => (
               <Link key={member.id} href={`/user/directory/${member.id}`}>
                 <div className="flex items-center gap-3 rounded-xl border p-4 transition-colors hover:bg-muted/50">
@@ -44,8 +41,7 @@ export default async function DirectoryPage() {
               No members yet.
             </div>
           )}
-        </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -1,11 +1,10 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { getUserById } from '@/lib/db/queries';
-import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ProfileForm } from '@/components/user/profile-form';
 
-export default async function ProfilePage() {
+export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user) redirect('/login');
 
@@ -13,14 +12,12 @@ export default async function ProfilePage() {
   if (!user) redirect('/login');
 
   return (
-    <>
-      <PageHeader title="My Profile" showSidebarTrigger />
-
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl px-4 py-8">
+    <div className="flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-2xl px-4 py-8">
+        <h1 className="mb-8 text-2xl font-bold tracking-tight sm:text-3xl">Settings</h1>
           <Card>
             <CardHeader>
-              <CardTitle>Edit Profile</CardTitle>
+              <CardTitle>Profile Settings</CardTitle>
               <CardDescription>
                 Update your member profile information visible to other members.
               </CardDescription>
@@ -30,7 +27,6 @@ export default async function ProfilePage() {
             </CardContent>
           </Card>
         </div>
-      </div>
-    </>
+    </div>
   );
 }
