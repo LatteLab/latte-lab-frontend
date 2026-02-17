@@ -4,7 +4,7 @@ export const createEventSchema = z.object({
   name: z.string().min(1, 'Event name is required').max(255),
   description: z.string().optional(),
   coverImage: z.string().url().optional().or(z.literal('')),
-  date: z.coerce.date({ required_error: 'Event date is required' }),
+  date: z.coerce.date({ error: 'Event date is required' }),
   endDate: z.coerce.date().optional(),
   location: z.string().optional(),
   capacity: z.coerce.number().int().min(1, 'Capacity must be at least 1'),

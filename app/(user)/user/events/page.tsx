@@ -4,6 +4,7 @@ import { getPublishedEvents, getRegistrationCount } from '@/lib/db/event-queries
 import { PageHeader } from '@/components/ui/page-header';
 import { EventCard } from '@/components/user/event-card';
 import { Calendar } from 'lucide-react';
+import Link from 'next/link';
 
 export default async function EventsPage({
   searchParams,
@@ -33,7 +34,7 @@ export default async function EventsPage({
         <div className="mx-auto max-w-5xl px-4 py-6">
           {/* Filter tabs */}
           <div className="mb-6 flex gap-2">
-            <a
+            <Link
               href="/user/events?filter=upcoming"
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
                 filter !== 'past'
@@ -42,8 +43,8 @@ export default async function EventsPage({
               }`}
             >
               Upcoming
-            </a>
-            <a
+            </Link>
+            <Link
               href="/user/events?filter=past"
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
                 filter === 'past'
@@ -52,7 +53,7 @@ export default async function EventsPage({
               }`}
             >
               Past
-            </a>
+            </Link>
           </div>
 
           {eventsWithCounts.length > 0 ? (

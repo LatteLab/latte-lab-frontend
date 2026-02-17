@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import {
   ArrowLeft, Mail, Phone, MapPin, GraduationCap,
-  Calendar, BarChart3, Users, Trophy, XCircle,
+  BarChart3, Users, Trophy, XCircle,
 } from 'lucide-react';
 
 export default async function UserDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -29,7 +29,6 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
   ]);
 
   const eventsAttended = eventHistory.filter(h => h.registration.status === 'checked_in').length;
-  const totalEvents = eventHistory.length;
 
   return (
     <>
