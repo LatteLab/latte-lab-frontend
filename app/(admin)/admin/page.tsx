@@ -4,7 +4,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { getDashboardStats, getRecentUsers } from '@/lib/db/queries';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/admin/stat-card';
-import { Users, Shield, TrendingUp, UserPlus } from 'lucide-react';
+import { getEventStats } from '@/lib/db/event-queries';
+import { Users, Shield, TrendingUp, UserPlus, Calendar, BarChart3, UserX } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -21,6 +22,7 @@ export default async function AdminDashboard() {
 
   const stats = await getDashboardStats();
   const recentUsers = await getRecentUsers(5);
+  const eventStats = await getEventStats();
 
   // Calculate trends
   const monthlyGrowth = stats.usersLastMonth > 0
@@ -57,6 +59,28 @@ export default async function AdminDashboard() {
             value={stats.usersThisWeek}
             icon={UserPlus}
             description="New users this week"
+          />
+        </div>
+
+        {/* Event Stats */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <StatCard
+            title="Total Events"
+            value={eventStats.totalEvents}
+            icon={Calendar}
+            description="Completed events"
+          />
+          <StatCard
+            title="Attendance Rate"
+            value={`${eventStats.avgAttendanceRate}%`}
+            icon={BarChart3}
+            description="Average across events"
+          />
+          <StatCard
+            title="No-Show Rate"
+            value={`${eventStats.noShowRate}%`}
+            icon={UserX}
+            description="Average across events"
           />
         </div>
 
@@ -102,6 +126,12 @@ export default async function AdminDashboard() {
               <CardDescription>Common administrative tasks</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
+              <Link href="/admin/events">
+                <Button variant="outline" className="w-full justify-start">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Manage Events
+                </Button>
+              </Link>
               <Link href="/admin/users">
                 <Button variant="outline" className="w-full justify-start">
                   <Users className="mr-2 h-4 w-4" />
