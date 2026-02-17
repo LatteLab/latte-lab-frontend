@@ -34,21 +34,28 @@ export function TopNav() {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <header className="sticky top-0 z-50 h-14 border-b border-border/40 bg-gradient-to-r from-amber-50/80 via-orange-50/60 to-amber-50/80 backdrop-blur-md dark:from-amber-950/30 dark:via-stone-950/80 dark:to-amber-950/30">
+      <header className="sticky top-0 z-50 h-14 bg-amber-50/60 backdrop-blur-xl backdrop-saturate-150 dark:bg-stone-950/70">
+        {/* Subtle warm bottom edge */}
+        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-amber-200/60 to-transparent dark:via-white/10" />
+
         <div className="flex h-full items-center justify-between px-4 sm:px-6">
           {/* Left section: Logo + Nav */}
           <div className="flex items-center">
-            {/* Logo group */}
+            {/* Logo */}
             <Link
               href="/user/events"
-              className="flex items-center gap-2 rounded-md px-2 py-1.5 font-semibold transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+              className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-all hover:bg-stone-100/80 dark:hover:bg-white/5"
             >
-              <Coffee className="h-5 w-5 text-amber-700 dark:text-amber-400" />
-              <span className="hidden text-sm sm:inline">Latte Lab</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-600 to-orange-700 shadow-sm shadow-amber-500/25">
+                <Coffee className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />
+              </div>
+              <span className="hidden text-[13px] font-semibold tracking-tight text-stone-800 sm:inline dark:text-stone-200">
+                Latte Lab
+              </span>
             </Link>
 
-            {/* Nav group — visually separated from logo */}
-            <nav className="ml-4 flex items-center gap-0.5 border-l border-border/40 pl-4 sm:ml-6 sm:pl-6">
+            {/* Nav items */}
+            <nav className="ml-5 flex items-center gap-1 sm:ml-7">
               {navItems.map((item) => {
                 const isActive = pathname.startsWith(item.url);
                 return (
@@ -57,13 +64,13 @@ export function TopNav() {
                       <Link
                         href={item.url}
                         className={cn(
-                          'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                          'relative flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all',
                           isActive
-                            ? 'bg-black/10 text-foreground dark:bg-white/15'
-                            : 'text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10'
+                            ? 'bg-stone-900/[0.06] text-stone-900 dark:bg-white/10 dark:text-stone-100'
+                            : 'text-stone-500 hover:bg-stone-100/70 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-white/5 dark:hover:text-stone-200'
                         )}
                       >
-                        <item.icon className="h-4 w-4" />
+                        <item.icon className="h-[15px] w-[15px]" strokeWidth={isActive ? 2.25 : 1.75} />
                         <span className="hidden sm:inline">{item.title}</span>
                       </Link>
                     </TooltipTrigger>
@@ -77,11 +84,16 @@ export function TopNav() {
           </div>
 
           {/* Right section */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
-                  <Search className="h-4 w-4" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg text-stone-400 hover:bg-stone-100/70 hover:text-stone-600 dark:text-stone-500 dark:hover:bg-white/5"
+                  disabled
+                >
+                  <Search className="h-[15px] w-[15px]" strokeWidth={2} />
                   <span className="sr-only">Search</span>
                 </Button>
               </TooltipTrigger>
@@ -90,20 +102,31 @@ export function TopNav() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
-                  <Bell className="h-4 w-4" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg text-stone-400 hover:bg-stone-100/70 hover:text-stone-600 dark:text-stone-500 dark:hover:bg-white/5"
+                  disabled
+                >
+                  <Bell className="h-[15px] w-[15px]" strokeWidth={2} />
                   <span className="sr-only">Notifications</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Coming soon</TooltipContent>
             </Tooltip>
 
+            <div className="ml-1.5 h-5 w-px bg-stone-200/70 dark:bg-white/10" />
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="ml-1.5 h-8 w-8 rounded-full ring-1 ring-stone-200/60 transition-shadow hover:ring-stone-300/80 dark:ring-white/10 dark:hover:ring-white/20"
+                >
                   <Avatar className="h-7 w-7">
                     <AvatarImage src={session?.user?.image || undefined} />
-                    <AvatarFallback className="text-xs">
+                    <AvatarFallback className="bg-gradient-to-br from-amber-100 to-orange-100 text-xs font-medium text-amber-800 dark:from-amber-900/50 dark:to-orange-900/50 dark:text-amber-200">
                       {session?.user?.name
                         ?.split(' ')
                         .map((n) => n[0])

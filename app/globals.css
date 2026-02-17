@@ -120,3 +120,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Subtle warm dot grid for user portal backgrounds */
+.bg-dot-grid {
+  background-image: radial-gradient(circle, oklch(0.75 0.02 70) 0.5px, transparent 0.5px);
+  background-size: 24px 24px;
+}
