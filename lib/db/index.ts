@@ -17,3 +17,4 @@ export const db = drizzle(client, { schema });
 // Export all query functions
 export * from './queries';
 export * from './schema';
+export * from './event-queries';
