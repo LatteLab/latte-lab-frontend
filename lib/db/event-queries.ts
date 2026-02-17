@@ -1,6 +1,6 @@
 import { db } from './index';
 import { events, eventRegistrations, lotteryHistory, users } from './schema';
-import { eq, and, desc, gte, sql, count, inArray } from 'drizzle-orm';
+import { eq, and, desc, gte, lt, ne, sql, count, inArray } from 'drizzle-orm';
 import type { Event, NewEvent, EventRegistration } from './schema';
 
 // ============================================================================
@@ -15,7 +15,7 @@ export async function getEvents(filter?: 'upcoming' | 'past') {
     return query.where(gte(events.date, now)).orderBy(events.date);
   }
   if (filter === 'past') {
-    return query.where(sql`${events.date} < ${now}`).orderBy(desc(events.date));
+    return query.where(lt(events.date, now)).orderBy(desc(events.date));
   }
   return query.orderBy(desc(events.date));
 }
@@ -25,7 +25,7 @@ export async function getPublishedEvents(filter?: 'upcoming' | 'past') {
   if (filter === 'upcoming') {
     return db.select().from(events)
       .where(and(
-        sql`${events.status} != 'draft'`,
+        ne(events.status, 'draft'),
         gte(events.date, now)
       ))
       .orderBy(events.date);
@@ -33,13 +33,13 @@ export async function getPublishedEvents(filter?: 'upcoming' | 'past') {
   if (filter === 'past') {
     return db.select().from(events)
       .where(and(
-        sql`${events.status} != 'draft'`,
-        sql`${events.date} < ${now}`
+        ne(events.status, 'draft'),
+        lt(events.date, now)
       ))
       .orderBy(desc(events.date));
   }
   return db.select().from(events)
-    .where(sql`${events.status} != 'draft'`)
+    .where(ne(events.status, 'draft'))
     .orderBy(desc(events.date));
 }
 
