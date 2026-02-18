@@ -105,9 +105,9 @@ function DateTimePicker({ value, onChange, label }: DateTimePickerProps) {
   }
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
+    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
       {label && (
-        <span className="text-sm font-medium text-muted-foreground min-w-[40px]">
+        <span className="text-xs font-medium text-muted-foreground min-w-[36px]">
           {label}
         </span>
       )}
@@ -117,11 +117,11 @@ function DateTimePicker({ value, onChange, label }: DateTimePickerProps) {
           <button
             type="button"
             className={cn(
-              "inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted min-w-[130px]",
+              "inline-flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted min-w-[120px]",
               !value && "text-muted-foreground"
             )}
           >
-            <CalendarIcon className="h-3.5 w-3.5" />
+            <CalendarIcon className="h-3 w-3" />
             {value ? format(value, "EEE, MMM d") : "Pick a date"}
           </button>
         </PopoverTrigger>
@@ -135,7 +135,7 @@ function DateTimePicker({ value, onChange, label }: DateTimePickerProps) {
       </Popover>
 
       <Select value={currentTimeValue} onValueChange={handleTimeSelect}>
-        <SelectTrigger className="rounded-lg border bg-background w-[110px] h-8 text-sm">
+        <SelectTrigger className="rounded-md border bg-background w-[100px] h-7 text-xs">
           <SelectValue placeholder="Time" />
         </SelectTrigger>
         <SelectContent>

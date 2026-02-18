@@ -103,9 +103,9 @@ export function EventForm({ event }: { event?: Event }) {
           />
 
           {/* Date/Time Section */}
-          <div className="rounded-xl border bg-muted/30 p-3 sm:p-4">
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-              <div className="flex-1 space-y-2">
+          <div className="rounded-xl border bg-muted/30 px-3 py-2.5 sm:px-4 sm:py-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <div className="flex-1 space-y-1.5">
                 <DateTimePicker
                   label="Start"
                   value={startDate}
@@ -135,10 +135,10 @@ export function EventForm({ event }: { event?: Event }) {
           </div>
 
           {/* Description */}
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <FileText className="h-3.5 w-3.5" />
-              <span className="text-xs font-medium">Description</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">Description</span>
             </div>
             <TiptapEditor
               content={description}
@@ -149,18 +149,18 @@ export function EventForm({ event }: { event?: Event }) {
 
           {/* Event Options */}
           <div className="space-y-2">
-            <h3 className="text-xs font-medium text-muted-foreground">
+            <h3 className="text-sm font-semibold">
               Event Options
             </h3>
             <div className="rounded-xl border divide-y">
               {/* Event Type */}
-              <div className="flex items-center justify-between px-3 sm:px-4 py-2.5">
-                <div className="flex items-center gap-3">
-                  <Ticket className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2">
+                <div className="flex items-center gap-2.5">
+                  <Ticket className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-sm">Event Type</span>
                 </div>
                 <Select value={eventType} onValueChange={(v) => setEventType(v as 'waitlist' | 'lottery')}>
-                  <SelectTrigger className="w-[120px] h-8 text-sm">
+                  <SelectTrigger className="w-[110px] h-7 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -171,9 +171,9 @@ export function EventForm({ event }: { event?: Event }) {
               </div>
 
               {/* Capacity */}
-              <div className="flex items-center justify-between px-3 sm:px-4 py-2.5">
-                <div className="flex items-center gap-3">
-                  <Users className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2">
+                <div className="flex items-center gap-2.5">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-sm">Capacity</span>
                 </div>
                 <Input
@@ -182,16 +182,16 @@ export function EventForm({ event }: { event?: Event }) {
                   value={capacity}
                   onChange={(e) => setCapacity(e.target.value)}
                   placeholder="e.g. 50"
-                  className="w-[120px] h-8 text-sm text-right"
+                  className="w-[110px] h-7 text-xs text-right"
                   required
                 />
               </div>
 
               {/* Lottery Deadline (conditional) */}
               {eventType === 'lottery' && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between px-3 sm:px-4 py-2.5 gap-2">
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between px-3 sm:px-4 py-2 gap-1.5">
+                  <div className="flex items-center gap-2.5">
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-sm">Lottery Deadline</span>
                   </div>
                   <DateTimePicker
@@ -203,13 +203,13 @@ export function EventForm({ event }: { event?: Event }) {
               )}
 
               {/* Status */}
-              <div className="flex items-center justify-between px-3 sm:px-4 py-2.5">
-                <div className="flex items-center gap-3">
-                  <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2">
+                <div className="flex items-center gap-2.5">
+                  <ToggleLeft className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-sm">Status</span>
                 </div>
                 <Select value={status} onValueChange={(v) => setStatus(v as 'draft' | 'open')}>
-                  <SelectTrigger className="w-[120px] h-8 text-sm">
+                  <SelectTrigger className="w-[110px] h-7 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
