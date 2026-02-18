@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Users, Calendar } from 'lucide-react';
 import type { Event } from '@/lib/db/schema';
+import { isGradient, parseGradient, gradientConfigToCSS } from '@/lib/gradients';
 
 function formatTime(date: Date) {
   return new Date(date).toLocaleTimeString('en-US', {
@@ -76,7 +77,12 @@ export function TimelineEventCard({ event, registrationStatus, registeredCount }
 
         {/* Right: cover image */}
         <div className="h-[110px] w-[110px] shrink-0 overflow-hidden rounded-lg sm:h-[120px] sm:w-[120px]">
-          {event.coverImage ? (
+          {event.coverImage && isGradient(event.coverImage) ? (
+            <div
+              className="h-full w-full transition-transform duration-300 group-hover:scale-105"
+              style={{ background: gradientConfigToCSS(parseGradient(event.coverImage)!) }}
+            />
+          ) : event.coverImage ? (
             <Image
               src={event.coverImage}
               alt={event.name}

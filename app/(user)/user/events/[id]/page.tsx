@@ -5,6 +5,7 @@ import { EventRegistrationButton } from '@/components/user/event-registration-bu
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar, MapPin, Users, Clock } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { isGradient, parseGradient, gradientConfigToCSS } from '@/lib/gradients';
 
 function formatDate(date: Date) {
   return new Date(date).toLocaleDateString('en-US', {
@@ -51,7 +52,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             {/* Left: Cover image */}
             <div>
               <div className="aspect-square overflow-hidden rounded-2xl bg-muted">
-                {event.coverImage ? (
+                {event.coverImage && isGradient(event.coverImage) ? (
+                  <div
+                    className="h-full w-full"
+                    style={{ background: gradientConfigToCSS(parseGradient(event.coverImage)!) }}
+                  />
+                ) : event.coverImage ? (
                   <img
                     src={event.coverImage}
                     alt={event.name}
@@ -120,9 +126,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
               {/* Description */}
               {event.description && (
-                <div className="prose prose-sm dark:prose-invert max-w-none pt-4 border-t">
-                  <p className="whitespace-pre-wrap">{event.description}</p>
-                </div>
+                <div
+                  className="prose prose-sm dark:prose-invert max-w-none pt-4 border-t"
+                  dangerouslySetInnerHTML={{ __html: event.description }}
+                />
               )}
 
               {/* Guest list */}

@@ -156,6 +156,7 @@ interface TimezonePickerProps {
 }
 
 function TimezonePicker({ value, onChange }: TimezonePickerProps) {
+  const [open, setOpen] = useState(false);
   const offset = useMemo(() => getTimezoneOffset(value), [value]);
   const city = useMemo(() => {
     const match = TIMEZONE_OPTIONS.find((tz) => tz.value === value);
@@ -163,7 +164,7 @@ function TimezonePicker({ value, onChange }: TimezonePickerProps) {
   }, [value]);
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -180,7 +181,7 @@ function TimezonePicker({ value, onChange }: TimezonePickerProps) {
             <button
               key={tz.value}
               type="button"
-              onClick={() => onChange(tz.value)}
+              onClick={() => { onChange(tz.value); setOpen(false); }}
               className={cn(
                 "w-full flex items-center justify-between px-3 py-1.5 text-sm rounded-md hover:bg-muted transition-colors",
                 value === tz.value && "bg-muted font-medium"
