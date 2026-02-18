@@ -30,7 +30,7 @@ export function EventForm({ event }: { event?: Event }) {
   );
   const [location, setLocation] = useState(event?.location || '');
   const [description, setDescription] = useState(event?.description || '');
-  const [eventType, setEventType] = useState<'waitlist' | 'lottery'>(
+  const [eventType, setEventType] = useState<'waitlist' | 'lottery' | 'invite_only'>(
     event?.type || 'waitlist'
   );
   const [capacity, setCapacity] = useState<string>(

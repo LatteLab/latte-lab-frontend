@@ -1,14 +1,14 @@
-import { pgTable, pgEnum, text, timestamp, uuid, primaryKey, integer, real, unique } from 'drizzle-orm/pg-core';
+import { pgTable, pgEnum, text, timestamp, uuid, primaryKey, integer, real, unique, boolean } from 'drizzle-orm/pg-core';
 import type { AdapterAccountType } from 'next-auth/adapters';
 
 // ============================================================================
 // Enums
 // ============================================================================
 
-export const eventTypeEnum = pgEnum('event_type', ['waitlist', 'lottery']);
+export const eventTypeEnum = pgEnum('event_type', ['waitlist', 'lottery', 'invite_only']);
 export const eventStatusEnum = pgEnum('event_status', ['draft', 'open', 'closed', 'completed']);
 export const registrationStatusEnum = pgEnum('registration_status', [
-  'registered', 'waitlisted', 'lottery_entered', 'selected', 'rejected', 'checked_in', 'no_show'
+  'registered', 'waitlisted', 'lottery_entered', 'selected', 'rejected', 'checked_in', 'no_show', 'pending_approval'
 ]);
 export const lotteryOutcomeEnum = pgEnum('lottery_outcome', ['won', 'lost']);
 
@@ -84,10 +84,22 @@ export const events = pgTable('events', {
   type: eventTypeEnum('type').notNull(),
   lotteryDeadline: timestamp('lottery_deadline', { mode: 'date' }),
   status: eventStatusEnum('status').notNull().default('draft'),
+  requireApproval: boolean('require_approval').notNull().default(false),
+  inviteCode: text('invite_code').unique(),
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
+// Event access table - tracks which users have access to invite-only events
+export const eventAccess = pgTable('event_access', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  userEventUnique: unique().on(table.userId, table.eventId),
+}));
 
 // Event registrations table
 export const eventRegistrations = pgTable('event_registrations', {
@@ -126,4 +138,6 @@ export type Event = typeof events.$inferSelect;
 export type NewEvent = typeof events.$inferInsert;
 export type EventRegistration = typeof eventRegistrations.$inferSelect;
 export type NewEventRegistration = typeof eventRegistrations.$inferInsert;
+export type EventAccess = typeof eventAccess.$inferSelect;
+export type NewEventAccess = typeof eventAccess.$inferInsert;
 export type LotteryHistory = typeof lotteryHistory.$inferSelect;
