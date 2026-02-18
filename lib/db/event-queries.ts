@@ -33,7 +33,7 @@ export async function getPublishedEvents(filter?: 'upcoming' | 'past') {
     baseConditions.push(lt(events.date, now));
   }
 
-  const orderDir = filter === 'past' ? desc(events.date) : desc(events.date);
+  const orderDir = filter === 'past' ? desc(events.date) : events.date;
 
   return db.select().from(events)
     .where(and(...baseConditions))
@@ -83,7 +83,10 @@ export async function hasEventAccess(userId: string, eventId: string): Promise<b
 
 export async function getEventByInviteCode(code: string): Promise<Event | null> {
   const [event] = await db.select().from(events)
-    .where(eq(events.inviteCode, code))
+    .where(and(
+      eq(events.inviteCode, code),
+      eq(events.type, 'invite_only')
+    ))
     .limit(1);
   return event || null;
 }

@@ -18,7 +18,7 @@ export default async function DiscoverPage() {
       ]);
       return {
         event,
-        registrationStatus: registration?.status ?? '',
+        registrationStatus: registration?.status ?? null,
         registeredCount,
       };
     })

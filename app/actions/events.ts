@@ -63,6 +63,17 @@ export async function updateEventAction(eventId: string, formData: FormData) {
     requireApproval: raw.requireApproval !== undefined ? raw.requireApproval === 'true' : undefined,
   });
 
+  // Handle invite code when type changes
+  let inviteCode: string | null | undefined;
+  if (parsed.type === 'invite_only') {
+    const existing = await getEventById(eventId);
+    if (!existing?.inviteCode) {
+      inviteCode = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+    }
+  } else if (parsed.type) {
+    inviteCode = null; // Clear invite code when switching away from invite_only
+  }
+
   const event = await dbUpdateEvent(eventId, {
     ...parsed,
     coverImage: parsed.coverImage || null,
@@ -70,6 +81,7 @@ export async function updateEventAction(eventId: string, formData: FormData) {
     location: parsed.location || null,
     endDate: parsed.endDate || null,
     lotteryDeadline: parsed.lotteryDeadline || null,
+    ...(inviteCode !== undefined && { inviteCode }),
   });
 
   revalidatePath('/admin/events');
@@ -281,6 +293,22 @@ export async function approveRegistration(registrationId: string, eventId: strin
   const event = await getEventById(eventId);
   if (!event) throw new Error('Event not found');
 
+  // Verify registration belongs to this event and is pending
+  const regs = await getEventRegistrations(eventId);
+  const reg = regs.find(r => r.registration.id === registrationId);
+  if (!reg) throw new Error('Registration not found');
+  if (reg.registration.status !== 'pending_approval') {
+    throw new Error('Registration is not pending approval');
+  }
+
+  // Check capacity before approving (except lottery which has its own mechanism)
+  if (event.type !== 'lottery') {
+    const confirmedCount = await getRegistrationCount(eventId, ['registered', 'checked_in']);
+    if (confirmedCount >= event.capacity) {
+      throw new Error('Event is at capacity');
+    }
+  }
+
   // Determine the appropriate status after approval
   let newStatus: 'registered' | 'lottery_entered' = 'registered';
   if (event.type === 'lottery') {
@@ -297,6 +325,14 @@ export async function denyRegistration(registrationId: string, eventId: string) 
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
+  // Verify registration belongs to this event and is pending
+  const regs = await getEventRegistrations(eventId);
+  const reg = regs.find(r => r.registration.id === registrationId);
+  if (!reg) throw new Error('Registration not found');
+  if (reg.registration.status !== 'pending_approval') {
+    throw new Error('Registration is not pending approval');
+  }
+
   await updateRegistration(registrationId, { status: 'rejected' });
 
   revalidatePath(`/admin/events/${eventId}`);
@@ -308,7 +344,7 @@ export async function accessEventByInviteCode(code: string) {
   if (!session?.user) throw new Error('Unauthorized');
 
   const event = await getEventByInviteCode(code);
-  if (!event) throw new Error('Invalid invite code');
+  if (!event || event.status === 'draft') throw new Error('Invalid invite code');
 
   await createEventAccess(session.user.id, event.id);
   return event.id;
@@ -317,6 +353,11 @@ export async function accessEventByInviteCode(code: string) {
 export async function regenerateInviteCode(eventId: string) {
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const event = await getEventById(eventId);
+  if (!event || event.type !== 'invite_only') {
+    throw new Error('Can only regenerate invite codes for invite-only events');
+  }
 
   const newCode = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
   await dbUpdateEvent(eventId, { inviteCode: newCode });

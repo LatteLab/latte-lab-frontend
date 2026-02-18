@@ -119,7 +119,7 @@ export function RegistrationsTable({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                  className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-500/10"
                   onClick={() => handleApprove(registration.id)}
                   disabled={isPending}
                   title="Approve"
@@ -129,7 +129,7 @@ export function RegistrationsTable({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-500/10"
                   onClick={() => handleDeny(registration.id)}
                   disabled={isPending}
                   title="Deny"
