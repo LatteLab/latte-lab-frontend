@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { MapPin, FileText, Users, Ticket, Clock, ToggleLeft } from 'lucide-react';
+import { MapPin, FileText, Users, Ticket, Clock, ToggleLeft, ShieldCheck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { createEventAction, updateEventAction } from '@/app/actions/events';
 import { CoverImagePicker } from '@/components/admin/cover-image-picker';
 import { TiptapEditor } from '@/components/admin/tiptap-editor';
@@ -42,6 +43,9 @@ export function EventForm({ event }: { event?: Event }) {
   const [status, setStatus] = useState<'draft' | 'open'>(
     event?.status === 'open' ? 'open' : 'draft'
   );
+  const [requireApproval, setRequireApproval] = useState(
+    event?.requireApproval ?? false
+  );
   const [timezone, setTimezone] = useState(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone
   );
@@ -60,6 +64,7 @@ export function EventForm({ event }: { event?: Event }) {
     formData.set('capacity', capacity);
     formData.set('type', eventType);
     formData.set('status', status);
+    formData.set('requireApproval', String(requireApproval));
 
     if (startDate) formData.set('date', startDate.toISOString());
     if (endDate) formData.set('endDate', endDate.toISOString());
@@ -159,13 +164,14 @@ export function EventForm({ event }: { event?: Event }) {
                   <Ticket className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-sm">Event Type</span>
                 </div>
-                <Select value={eventType} onValueChange={(v) => setEventType(v as 'waitlist' | 'lottery')}>
-                  <SelectTrigger className="w-[110px] h-7 text-xs">
+                <Select value={eventType} onValueChange={(v) => setEventType(v as 'waitlist' | 'lottery' | 'invite_only')}>
+                  <SelectTrigger className="w-[120px] h-7 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="waitlist">Waitlist</SelectItem>
                     <SelectItem value="lottery">Lottery</SelectItem>
+                    <SelectItem value="invite_only">Invite Only</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -217,6 +223,18 @@ export function EventForm({ event }: { event?: Event }) {
                     <SelectItem value="open">Published</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Require Approval */}
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2">
+                <div className="flex items-center gap-2.5">
+                  <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-sm">Require Approval</span>
+                </div>
+                <Switch
+                  checked={requireApproval}
+                  onCheckedChange={setRequireApproval}
+                />
               </div>
             </div>
           </div>
