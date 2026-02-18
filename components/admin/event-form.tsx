@@ -1,30 +1,68 @@
 'use client';
 
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { createEventAction, updateEventAction } from '@/app/actions/events';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { MapPin, FileText, Users, Ticket, Clock, ToggleLeft } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { createEventAction, updateEventAction } from '@/app/actions/events';
+import { CoverImagePicker } from '@/components/admin/cover-image-picker';
+import { TiptapEditor } from '@/components/admin/tiptap-editor';
+import { DateTimePicker, TimezoneDisplay } from '@/components/admin/date-time-picker';
 import type { Event } from '@/lib/db/schema';
 
-function toDatetimeLocal(date: Date | null | undefined): string {
-  if (!date) return '';
-  const d = new Date(date);
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 16);
-}
-
 export function EventForm({ event }: { event?: Event }) {
-  const [eventType, setEventType] = useState<'waitlist' | 'lottery'>(event?.type || 'waitlist');
+  const [coverImage, setCoverImage] = useState<string>(event?.coverImage || '');
+  const [name, setName] = useState(event?.name || '');
+  const [startDate, setStartDate] = useState<Date | undefined>(
+    event?.date ? new Date(event.date) : undefined
+  );
+  const [endDate, setEndDate] = useState<Date | undefined>(
+    event?.endDate ? new Date(event.endDate) : undefined
+  );
+  const [location, setLocation] = useState(event?.location || '');
+  const [description, setDescription] = useState(event?.description || '');
+  const [eventType, setEventType] = useState<'waitlist' | 'lottery'>(
+    event?.type || 'waitlist'
+  );
+  const [capacity, setCapacity] = useState<string>(
+    event?.capacity ? String(event.capacity) : ''
+  );
+  const [lotteryDeadline, setLotteryDeadline] = useState<Date | undefined>(
+    event?.lotteryDeadline ? new Date(event.lotteryDeadline) : undefined
+  );
+  const [status, setStatus] = useState<'draft' | 'open'>(
+    event?.status === 'open' ? 'open' : 'draft'
+  );
+
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const handleSubmit = (formData: FormData) => {
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    const formData = new FormData();
+    formData.set('name', name);
+    formData.set('coverImage', coverImage);
+    formData.set('description', description);
+    formData.set('location', location);
+    formData.set('capacity', capacity);
     formData.set('type', eventType);
+    formData.set('status', status);
+
+    if (startDate) formData.set('date', startDate.toISOString());
+    if (endDate) formData.set('endDate', endDate.toISOString());
+    if (eventType === 'lottery' && lotteryDeadline) {
+      formData.set('lotteryDeadline', lotteryDeadline.toISOString());
+    }
 
     startTransition(async () => {
       try {
@@ -37,145 +75,161 @@ export function EventForm({ event }: { event?: Event }) {
           router.push(`/admin/events/${created.id}`);
         }
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to save event');
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to save event'
+        );
       }
     });
-  };
+  }
 
   return (
-    <form action={handleSubmit}>
-      <div className="grid gap-8 md:grid-cols-[280px_1fr]">
-        {/* Sidebar */}
-        <aside className="space-y-6">
-          {/* Cover image */}
-          <div>
-            <Label>Cover Image URL</Label>
-            <Input
-              name="coverImage"
-              defaultValue={event?.coverImage || ''}
-              placeholder="https://..."
-              className="mt-1"
-            />
-          </div>
+    <form onSubmit={handleSubmit}>
+      <div className="grid gap-8 md:grid-cols-[420px_1fr]">
+        {/* Left: Cover Image */}
+        <CoverImagePicker value={coverImage || null} onChange={setCoverImage} />
 
-          {/* Event type */}
-          <div className="space-y-3">
-            <Label>Event Type</Label>
-            <RadioGroup
-              value={eventType}
-              onValueChange={(v) => setEventType(v as 'waitlist' | 'lottery')}
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="waitlist" id="waitlist" />
-                <Label htmlFor="waitlist" className="font-normal">Waitlist</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="lottery" id="lottery" />
-                <Label htmlFor="lottery" className="font-normal">Lottery</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {/* Lottery deadline */}
-          {eventType === 'lottery' && (
-            <div className="space-y-2">
-              <Label htmlFor="lotteryDeadline">Lottery Deadline</Label>
-              <Input
-                id="lotteryDeadline"
-                name="lotteryDeadline"
-                type="datetime-local"
-                defaultValue={toDatetimeLocal(event?.lotteryDeadline)}
-              />
-            </div>
-          )}
-
-          {/* Status */}
-          <div className="space-y-3">
-            <Label>Status</Label>
-            <RadioGroup name="status" defaultValue={event?.status || 'draft'}>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="draft" id="draft" />
-                <Label htmlFor="draft" className="font-normal">Draft</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="open" id="open" />
-                <Label htmlFor="open" className="font-normal">Published</Label>
-              </div>
-            </RadioGroup>
-          </div>
-        </aside>
-
-        {/* Main form */}
+        {/* Right: Form Fields */}
         <div className="space-y-6">
-          <div>
+          {/* Event Name */}
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Event Name"
+            className="border-0 text-3xl font-bold placeholder:text-muted-foreground/40 focus-visible:ring-0 p-0 h-auto tracking-tight"
+            required
+          />
+
+          {/* Date/Time Section */}
+          <div className="rounded-xl border bg-muted/30 p-4">
+            <div className="flex gap-4">
+              <div className="flex-1 space-y-3">
+                <DateTimePicker
+                  label="Start"
+                  value={startDate}
+                  onChange={setStartDate}
+                />
+                <DateTimePicker
+                  label="End"
+                  value={endDate}
+                  onChange={setEndDate}
+                />
+              </div>
+              <TimezoneDisplay />
+            </div>
+          </div>
+
+          {/* Location */}
+          <div className="flex items-center gap-3 rounded-xl border bg-muted/30 p-4">
+            <MapPin className="h-5 w-5 text-muted-foreground shrink-0" />
             <Input
-              name="name"
-              defaultValue={event?.name || ''}
-              placeholder="Event Name"
-              className="border-0 text-3xl font-bold placeholder:text-muted-foreground/40 focus-visible:ring-0 p-0 h-auto"
-              required
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Add Event Location"
+              className="border-0 bg-transparent p-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground"
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="date">Start Date & Time</Label>
-              <Input
-                id="date"
-                name="date"
-                type="datetime-local"
-                defaultValue={toDatetimeLocal(event?.date)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="endDate">End Date & Time</Label>
-              <Input
-                id="endDate"
-                name="endDate"
-                type="datetime-local"
-                defaultValue={toDatetimeLocal(event?.endDate)}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
-              <Input
-                id="location"
-                name="location"
-                defaultValue={event?.location || ''}
-                placeholder="e.g. MIT Media Lab, E14-633"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="capacity">Capacity</Label>
-              <Input
-                id="capacity"
-                name="capacity"
-                type="number"
-                min={1}
-                defaultValue={event?.capacity || ''}
-                placeholder="e.g. 50"
-                required
-              />
-            </div>
-          </div>
-
+          {/* Description */}
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              name="description"
-              defaultValue={event?.description || ''}
-              placeholder="Describe the event..."
-              rows={6}
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <FileText className="h-4 w-4" />
+              <span className="text-sm font-medium">Description</span>
+            </div>
+            <TiptapEditor
+              content={description}
+              onChange={setDescription}
+              placeholder="Add Description"
             />
           </div>
 
-          <Button type="submit" size="lg" className="rounded-xl" disabled={isPending}>
-            {isPending ? 'Saving...' : event ? 'Update Event' : 'Create Event'}
+          {/* Event Options */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Event Options
+            </h3>
+            <div className="rounded-xl border divide-y">
+              {/* Event Type */}
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <Ticket className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Event Type</span>
+                </div>
+                <Select value={eventType} onValueChange={(v) => setEventType(v as 'waitlist' | 'lottery')}>
+                  <SelectTrigger className="w-[130px] h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="waitlist">Waitlist</SelectItem>
+                    <SelectItem value="lottery">Lottery</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Capacity */}
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Capacity</span>
+                </div>
+                <Input
+                  type="number"
+                  min={1}
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                  placeholder="e.g. 50"
+                  className="w-[130px] h-8 text-sm text-right"
+                  required
+                />
+              </div>
+
+              {/* Lottery Deadline (conditional) */}
+              {eventType === 'lottery' && (
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Lottery Deadline</span>
+                  </div>
+                  <div className="scale-90 origin-right">
+                    <DateTimePicker
+                      label=""
+                      value={lotteryDeadline}
+                      onChange={setLotteryDeadline}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Status */}
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Status</span>
+                </div>
+                <Select value={status} onValueChange={(v) => setStatus(v as 'draft' | 'open')}>
+                  <SelectTrigger className="w-[130px] h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="open">Published</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {/* Submit */}
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full rounded-xl"
+            disabled={isPending}
+          >
+            {isPending
+              ? 'Saving...'
+              : event
+                ? 'Update Event'
+                : 'Create Event'}
           </Button>
         </div>
       </div>
