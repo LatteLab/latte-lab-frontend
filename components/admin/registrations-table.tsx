@@ -3,10 +3,10 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { removeRegistration } from '@/app/actions/events';
+import { removeRegistration, approveRegistration, denyRegistration } from '@/app/actions/events';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Check, X } from 'lucide-react';
 
 interface Registration {
   registration: {
@@ -31,6 +31,7 @@ const statusColors: Record<string, string> = {
   rejected: 'bg-red-500/10 text-red-500 border-red-500/20',
   checked_in: 'bg-green-500/10 text-green-700 border-green-500/20',
   no_show: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
+  pending_approval: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
 };
 
 export function RegistrationsTable({
@@ -55,13 +56,42 @@ export function RegistrationsTable({
     });
   };
 
+  const handleApprove = (registrationId: string) => {
+    startTransition(async () => {
+      try {
+        await approveRegistration(registrationId, eventId);
+        toast.success('Registration approved');
+      } catch {
+        toast.error('Failed to approve registration');
+      }
+    });
+  };
+
+  const handleDeny = (registrationId: string) => {
+    startTransition(async () => {
+      try {
+        await denyRegistration(registrationId, eventId);
+        toast.success('Registration denied');
+      } catch {
+        toast.error('Failed to deny registration');
+      }
+    });
+  };
+
   if (registrations.length === 0) {
     return <p className="py-8 text-center text-muted-foreground">No registrations yet.</p>;
   }
 
+  // Sort: pending_approval first, then by createdAt
+  const sorted = [...registrations].sort((a, b) => {
+    if (a.registration.status === 'pending_approval' && b.registration.status !== 'pending_approval') return -1;
+    if (a.registration.status !== 'pending_approval' && b.registration.status === 'pending_approval') return 1;
+    return new Date(a.registration.createdAt).getTime() - new Date(b.registration.createdAt).getTime();
+  });
+
   return (
     <div className="space-y-1">
-      {registrations.map(({ registration, user }) => (
+      {sorted.map(({ registration, user }) => (
         <div key={registration.id} className="flex items-center justify-between rounded-lg border p-3">
           <div className="flex items-center gap-3 min-w-0">
             <Avatar className="h-8 w-8">
@@ -84,15 +114,40 @@ export function RegistrationsTable({
             <Badge variant="outline" className={statusColors[registration.status] || ''}>
               {registration.status.replace('_', ' ')}
             </Badge>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => handleRemove(registration.id)}
-              disabled={isPending}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            {registration.status === 'pending_approval' ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                  onClick={() => handleApprove(registration.id)}
+                  disabled={isPending}
+                  title="Approve"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={() => handleDeny(registration.id)}
+                  disabled={isPending}
+                  title="Deny"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => handleRemove(registration.id)}
+                disabled={isPending}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         </div>
       ))}
