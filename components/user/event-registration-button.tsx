@@ -19,10 +19,15 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
     startTransition(async () => {
       try {
         await registerForEvent(event.id);
-        toast.success(
-          event.type === 'lottery' ? 'Entered lottery!' :
-          spotsRemaining > 0 ? "You're registered!" : 'Added to waitlist!'
-        );
+        if (event.requireApproval) {
+          toast.success('Access requested! Waiting for admin approval.');
+        } else if (event.type === 'lottery') {
+          toast.success('Entered lottery!');
+        } else if (spotsRemaining > 0) {
+          toast.success("You're registered!");
+        } else {
+          toast.success('Added to waitlist!');
+        }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Registration failed');
       }
@@ -40,7 +45,7 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
     });
   };
 
-  // Already registered
+  // Already has a registration record
   if (registration) {
     const statusLabels: Record<string, string> = {
       registered: "You're In",
@@ -50,16 +55,23 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
       rejected: 'Not Selected',
       checked_in: 'Checked In',
       no_show: 'Marked as No-Show',
+      pending_approval: 'Pending Approval',
     };
 
-    const canCancel = ['registered', 'waitlisted', 'lottery_entered'].includes(registration.status);
+    const canCancel = ['registered', 'waitlisted', 'lottery_entered', 'pending_approval'].includes(registration.status);
 
     return (
       <div className="space-y-2">
         <Button
           size="lg"
           className="w-full rounded-xl text-lg"
-          variant={registration.status === 'rejected' || registration.status === 'no_show' ? 'destructive' : 'default'}
+          variant={
+            registration.status === 'rejected' || registration.status === 'no_show'
+              ? 'destructive'
+              : registration.status === 'pending_approval'
+                ? 'secondary'
+                : 'default'
+          }
           disabled
         >
           {statusLabels[registration.status] || registration.status}
@@ -72,7 +84,7 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
             onClick={handleCancel}
             disabled={isPending}
           >
-            Cancel Registration
+            {registration.status === 'pending_approval' ? 'Cancel Request' : 'Cancel Registration'}
           </Button>
         )}
       </div>
@@ -84,6 +96,41 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
     return (
       <Button size="lg" className="w-full rounded-xl text-lg" disabled>
         Event Closed
+      </Button>
+    );
+  }
+
+  // Require approval — show "Request Access" for all types
+  if (event.requireApproval) {
+    return (
+      <Button
+        size="lg"
+        className="w-full rounded-xl text-lg"
+        disabled={isPending}
+        onClick={handleRegister}
+      >
+        {isPending ? 'Requesting...' : 'Request Access'}
+      </Button>
+    );
+  }
+
+  // invite_only without approval — FCFS
+  if (event.type === 'invite_only') {
+    if (spotsRemaining <= 0) {
+      return (
+        <Button size="lg" className="w-full rounded-xl text-lg" disabled>
+          Event Full
+        </Button>
+      );
+    }
+    return (
+      <Button
+        size="lg"
+        className="w-full rounded-xl text-lg"
+        disabled={isPending}
+        onClick={handleRegister}
+      >
+        {isPending ? 'Registering...' : 'RSVP'}
       </Button>
     );
   }
