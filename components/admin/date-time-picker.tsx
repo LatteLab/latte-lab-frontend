@@ -117,7 +117,7 @@ function DateTimePicker({ value, onChange, label }: DateTimePickerProps) {
           <button
             type="button"
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted min-w-[120px]",
+              "inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted min-w-[130px]",
               !value && "text-muted-foreground"
             )}
           >
@@ -135,7 +135,7 @@ function DateTimePicker({ value, onChange, label }: DateTimePickerProps) {
       </Popover>
 
       <Select value={currentTimeValue} onValueChange={handleTimeSelect}>
-        <SelectTrigger className="rounded-md border bg-background w-[100px] h-7 text-xs">
+        <SelectTrigger className="rounded-md border bg-background w-[110px] h-8 text-sm">
           <SelectValue placeholder="Time" />
         </SelectTrigger>
         <SelectContent>

@@ -103,7 +103,7 @@ export function EventForm({ event }: { event?: Event }) {
           />
 
           {/* Date/Time Section */}
-          <div className="rounded-xl border bg-muted/30 px-3 py-2.5 sm:px-4 sm:py-3">
+          <div className="rounded-xl border bg-muted/30 px-2.5 py-2 sm:px-3 sm:py-2.5">
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <div className="flex-1 space-y-1.5">
                 <DateTimePicker
