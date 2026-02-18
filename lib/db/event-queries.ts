@@ -193,29 +193,37 @@ export async function getUserEvents(userId: string, filter?: 'upcoming' | 'past'
     conditions.push(lt(events.date, now));
   }
 
-  const rows = await db.select({
-    event: events,
-    registrationStatus: eventRegistrations.status,
-  })
+  // Subquery: count confirmed registrations per event
+  const confirmedCounts = db
+    .select({
+      eventId: eventRegistrations.eventId,
+      count: count().as('confirmed_count'),
+    })
+    .from(eventRegistrations)
+    .where(
+      inArray(eventRegistrations.status, ['registered', 'selected', 'checked_in'])
+    )
+    .groupBy(eventRegistrations.eventId)
+    .as('confirmed_counts');
+
+  // Single query: user registrations + events + aggregated counts
+  const rows = await db
+    .select({
+      event: events,
+      registrationStatus: eventRegistrations.status,
+      registeredCount: confirmedCounts.count,
+    })
     .from(eventRegistrations)
     .innerJoin(events, eq(eventRegistrations.eventId, events.id))
+    .leftJoin(confirmedCounts, eq(events.id, confirmedCounts.eventId))
     .where(and(...conditions))
     .orderBy(filter === 'past' ? desc(events.date) : events.date);
 
-  const results = await Promise.all(
-    rows.map(async (row) => {
-      const registeredCount = await getRegistrationCount(row.event.id, [
-        'registered', 'selected', 'checked_in',
-      ]);
-      return {
-        event: row.event,
-        registrationStatus: row.registrationStatus,
-        registeredCount,
-      };
-    })
-  );
-
-  return results;
+  return rows.map((row) => ({
+    event: row.event,
+    registrationStatus: row.registrationStatus,
+    registeredCount: row.registeredCount ?? 0,
+  }));
 }
 
 // ============================================================================

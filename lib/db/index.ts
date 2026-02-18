@@ -7,7 +7,7 @@ const connectionString = process.env.DATABASE_URL!;
 // Configure postgres-js for Supabase Session Mode
 const client = postgres(connectionString, {
   ssl: 'require',  // Supabase requires SSL
-  max: 1,          // Limit connections for serverless
+  max: 5,          // Allow concurrent queries in serverless
   idle_timeout: 20,
   connect_timeout: 10,
 });

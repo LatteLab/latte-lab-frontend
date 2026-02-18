@@ -7,6 +7,8 @@ Latte Lab Frontend - Next.js app for MIT's Latte Lab organization management.
 - Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui
 - Auth: NextAuth v5 (Google OAuth restricted to `mit.edu`)
 - Database: PostgreSQL (Supabase) + Drizzle ORM
+- Storage: Supabase Storage (`event-covers` bucket) via `lib/supabase/client.ts`
+- Rich text: Tiptap — event descriptions stored as HTML in `description` text column
 - Package manager: pnpm
 
 ## Commands
@@ -53,6 +55,10 @@ lib/
 │   ├── schema.ts           # Drizzle schema (users, events, registrations, lottery)
 │   ├── queries.ts          # User/admin queries
 │   └── event-queries.ts    # Event, registration, lottery queries
+├── supabase/
+│   ├── client.ts           # Browser Supabase client (anon key)
+│   └── storage.ts          # Upload/delete helpers for event covers
+├── gradients.ts            # Gradient generation/parsing for event covers
 ├── validations/            # Zod schemas (events.ts, profile.ts)
 └── utils.ts                # Utilities (cn helper)
 ```
@@ -87,3 +93,7 @@ if (!session?.user) throw new Error("Unauthorized");
 **Component styling:** Use `cn()` for conditional Tailwind classes.
 
 **Server vs Client:** Pages are server components; interactive parts use `'use client'`.
+
+## Gotchas
+
+- Supabase Storage RLS: client uses anon key, so policies must include `anon` role (not just `authenticated`)
