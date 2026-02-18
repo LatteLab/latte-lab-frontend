@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { EventForm } from '@/components/admin/event-form';
 import { RegistrationsTable } from '@/components/admin/registrations-table';
 import { LotteryDraw } from '@/components/admin/lottery-draw';
+import { InviteLinkCard } from '@/components/admin/invite-link-card';
 import Link from 'next/link';
 import { ClipboardCheck } from 'lucide-react';
 
@@ -39,6 +40,10 @@ export default async function AdminEventDetailPage({ params }: { params: Promise
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl px-4 py-6">
+          {event.type === 'invite_only' && event.inviteCode && (
+            <InviteLinkCard eventId={id} inviteCode={event.inviteCode} />
+          )}
+
           <Tabs defaultValue="registrations">
             <TabsList>
               <TabsTrigger value="registrations">
