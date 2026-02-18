@@ -2,8 +2,8 @@ import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { getUserEvents } from '@/lib/db/event-queries';
 import { EventTimeline } from '@/components/user/event-timeline';
+import { EventFilterToggle } from '@/components/user/event-filter-toggle';
 import { Calendar } from 'lucide-react';
-import Link from 'next/link';
 
 export default async function EventsPage({
   searchParams,
@@ -25,28 +25,7 @@ export default async function EventsPage({
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Events</h1>
 
           {/* Pill toggle */}
-          <div className="flex items-center rounded-full bg-muted p-0.5">
-            <Link
-              href="/user/events?filter=upcoming"
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
-                filter !== 'past'
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Upcoming
-            </Link>
-            <Link
-              href="/user/events?filter=past"
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
-                filter === 'past'
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Past
-            </Link>
-          </div>
+          <EventFilterToggle active={filter} />
         </div>
 
         {/* Timeline or empty state */}

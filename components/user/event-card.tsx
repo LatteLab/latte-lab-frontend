@@ -85,7 +85,7 @@ export function TimelineEventCard({ event, registrationStatus, registeredCount }
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+            <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-primary/20 to-primary/5">
               <Calendar className="h-8 w-8 text-primary/30" />
             </div>
           )}

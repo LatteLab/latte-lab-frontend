@@ -24,6 +24,8 @@ MVP event management system for Latte Lab with Luma-inspired UI/UX.
 - QR code check-in
 - Rich text editor for event descriptions
 - Sticky Dates on Timeline Tagging
+- Optimize for Event Fetching Delay
+- Mutuals (Partiful's Feature to seeing who's gone to what)
 
 ---
 
