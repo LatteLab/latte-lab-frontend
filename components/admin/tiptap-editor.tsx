@@ -19,6 +19,7 @@ export function TiptapEditor({
   placeholder = 'Add Description',
 }: TiptapEditorProps) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit,
       Link.configure({ openOnClick: false }),
