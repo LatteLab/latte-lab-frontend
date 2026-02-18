@@ -15,6 +15,9 @@ import {
   createLotteryHistoryEntries,
   updateRegistration,
   bulkMarkNoShow,
+  getEventByInviteCode,
+  createEventAccess,
+  hasEventAccess,
 } from '@/lib/db/event-queries';
 import { createEventSchema, updateEventSchema } from '@/lib/validations/events';
 
@@ -26,7 +29,12 @@ export async function createEventAction(formData: FormData) {
   const parsed = createEventSchema.parse({
     ...raw,
     capacity: Number(raw.capacity),
+    requireApproval: raw.requireApproval === 'true',
   });
+
+  const inviteCode = parsed.type === 'invite_only'
+    ? crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+    : null;
 
   const event = await dbCreateEvent({
     ...parsed,
@@ -35,6 +43,7 @@ export async function createEventAction(formData: FormData) {
     location: parsed.location || null,
     endDate: parsed.endDate || null,
     lotteryDeadline: parsed.lotteryDeadline || null,
+    inviteCode,
     createdBy: session.user.id,
   });
 
@@ -51,6 +60,7 @@ export async function updateEventAction(eventId: string, formData: FormData) {
   const parsed = updateEventSchema.parse({
     ...raw,
     capacity: raw.capacity ? Number(raw.capacity) : undefined,
+    requireApproval: raw.requireApproval !== undefined ? raw.requireApproval === 'true' : undefined,
   });
 
   const event = await dbUpdateEvent(eventId, {
@@ -77,8 +87,26 @@ export async function registerForEvent(eventId: string) {
     throw new Error('Event not available for registration');
   }
 
+  // For invite_only events, verify user has access
+  if (event.type === 'invite_only') {
+    const access = await hasEventAccess(session.user.id, eventId);
+    if (!access) throw new Error('You do not have access to this event');
+  }
+
   const existing = await getUserRegistration(session.user.id, eventId);
   if (existing) throw new Error('Already registered');
+
+  // If require approval is on, create pending_approval registration
+  if (event.requireApproval) {
+    await createRegistration({
+      userId: session.user.id,
+      eventId,
+      status: 'pending_approval',
+    });
+    revalidatePath(`/user/events/${eventId}`);
+    revalidatePath(`/admin/events/${eventId}`);
+    return;
+  }
 
   if (event.type === 'lottery') {
     if (event.lotteryDeadline && new Date() > event.lotteryDeadline) {
@@ -90,9 +118,14 @@ export async function registerForEvent(eventId: string) {
       status: 'lottery_entered',
     });
   } else {
-    // Waitlist type
+    // Waitlist or invite_only (FCFS)
     const confirmedCount = await getRegistrationCount(eventId, ['registered', 'checked_in']);
     const status = confirmedCount < event.capacity ? 'registered' : 'waitlisted';
+
+    if (event.type === 'invite_only' && confirmedCount >= event.capacity) {
+      throw new Error('Event is full');
+    }
+
     await createRegistration({
       userId: session.user.id,
       eventId,
@@ -239,4 +272,55 @@ export async function removeRegistration(registrationId: string, eventId: string
 
   await deleteRegistration(reg.user.id, eventId);
   revalidatePath(`/admin/events/${eventId}`);
+}
+
+export async function approveRegistration(registrationId: string, eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const event = await getEventById(eventId);
+  if (!event) throw new Error('Event not found');
+
+  // Determine the appropriate status after approval
+  let newStatus: 'registered' | 'lottery_entered' = 'registered';
+  if (event.type === 'lottery') {
+    newStatus = 'lottery_entered';
+  }
+
+  await updateRegistration(registrationId, { status: newStatus });
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidatePath(`/user/events/${eventId}`);
+}
+
+export async function denyRegistration(registrationId: string, eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  await updateRegistration(registrationId, { status: 'rejected' });
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidatePath(`/user/events/${eventId}`);
+}
+
+export async function accessEventByInviteCode(code: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error('Unauthorized');
+
+  const event = await getEventByInviteCode(code);
+  if (!event) throw new Error('Invalid invite code');
+
+  await createEventAccess(session.user.id, event.id);
+  return event.id;
+}
+
+export async function regenerateInviteCode(eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const newCode = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  await dbUpdateEvent(eventId, { inviteCode: newCode });
+
+  revalidatePath(`/admin/events/${eventId}`);
+  return newCode;
 }
