@@ -8,9 +8,10 @@ export const createEventSchema = z.object({
   endDate: z.coerce.date().optional(),
   location: z.string().optional(),
   capacity: z.coerce.number().int().min(1, 'Capacity must be at least 1'),
-  type: z.enum(['waitlist', 'lottery']),
+  type: z.enum(['waitlist', 'lottery', 'invite_only']),
   lotteryDeadline: z.coerce.date().optional(),
   status: z.enum(['draft', 'open']).default('draft'),
+  requireApproval: z.coerce.boolean().default(false),
 }).refine(
   (data) => {
     if (data.type === 'lottery' && !data.lotteryDeadline) {
