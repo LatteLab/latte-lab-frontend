@@ -1,5 +1,5 @@
 import { db } from './index';
-import { events, eventRegistrations, lotteryHistory, users } from './schema';
+import { events, eventRegistrations, eventAccess, lotteryHistory, users } from './schema';
 import { eq, and, desc, gte, lt, ne, count, inArray } from 'drizzle-orm';
 import type { Event, NewEvent, EventRegistration } from './schema';
 
@@ -22,25 +22,22 @@ export async function getEvents(filter?: 'upcoming' | 'past') {
 
 export async function getPublishedEvents(filter?: 'upcoming' | 'past') {
   const now = new Date();
+  const baseConditions = [
+    ne(events.status, 'draft'),
+    ne(events.type, 'invite_only'),
+  ];
+
   if (filter === 'upcoming') {
-    return db.select().from(events)
-      .where(and(
-        ne(events.status, 'draft'),
-        gte(events.date, now)
-      ))
-      .orderBy(events.date);
+    baseConditions.push(gte(events.date, now));
+  } else if (filter === 'past') {
+    baseConditions.push(lt(events.date, now));
   }
-  if (filter === 'past') {
-    return db.select().from(events)
-      .where(and(
-        ne(events.status, 'draft'),
-        lt(events.date, now)
-      ))
-      .orderBy(desc(events.date));
-  }
+
+  const orderDir = filter === 'past' ? desc(events.date) : desc(events.date);
+
   return db.select().from(events)
-    .where(ne(events.status, 'draft'))
-    .orderBy(desc(events.date));
+    .where(and(...baseConditions))
+    .orderBy(orderDir);
 }
 
 export async function getEventById(id: string): Promise<Event | null> {
@@ -59,6 +56,43 @@ export async function updateEvent(id: string, data: Partial<NewEvent>): Promise<
     .where(eq(events.id, id))
     .returning();
   return event;
+}
+
+// ============================================================================
+// Event Access Queries (for invite-only events)
+// ============================================================================
+
+export async function createEventAccess(userId: string, eventId: string) {
+  const [access] = await db.insert(eventAccess)
+    .values({ userId, eventId })
+    .onConflictDoNothing()
+    .returning();
+  return access;
+}
+
+export async function hasEventAccess(userId: string, eventId: string): Promise<boolean> {
+  const [row] = await db.select({ id: eventAccess.id })
+    .from(eventAccess)
+    .where(and(
+      eq(eventAccess.userId, userId),
+      eq(eventAccess.eventId, eventId)
+    ))
+    .limit(1);
+  return !!row;
+}
+
+export async function getEventByInviteCode(code: string): Promise<Event | null> {
+  const [event] = await db.select().from(events)
+    .where(eq(events.inviteCode, code))
+    .limit(1);
+  return event || null;
+}
+
+export async function getUserAccessedEventIds(userId: string): Promise<string[]> {
+  const rows = await db.select({ eventId: eventAccess.eventId })
+    .from(eventAccess)
+    .where(eq(eventAccess.userId, userId));
+  return rows.map(r => r.eventId);
 }
 
 // ============================================================================
