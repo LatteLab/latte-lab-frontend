@@ -16,7 +16,7 @@ import {
 import { createEventAction, updateEventAction } from '@/app/actions/events';
 import { CoverImagePicker } from '@/components/admin/cover-image-picker';
 import { TiptapEditor } from '@/components/admin/tiptap-editor';
-import { DateTimePicker, TimezoneDisplay } from '@/components/admin/date-time-picker';
+import { DateTimePicker, TimezonePicker } from '@/components/admin/date-time-picker';
 import type { Event } from '@/lib/db/schema';
 
 export function EventForm({ event }: { event?: Event }) {
@@ -41,6 +41,9 @@ export function EventForm({ event }: { event?: Event }) {
   );
   const [status, setStatus] = useState<'draft' | 'open'>(
     event?.status === 'open' ? 'open' : 'draft'
+  );
+  const [timezone, setTimezone] = useState(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone
   );
 
   const [isPending, startTransition] = useTransition();
@@ -84,25 +87,25 @@ export function EventForm({ event }: { event?: Event }) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="grid gap-8 md:grid-cols-[420px_1fr]">
+      <div className="grid gap-6 md:gap-8 md:grid-cols-[minmax(280px,420px)_1fr]">
         {/* Left: Cover Image */}
         <CoverImagePicker value={coverImage || null} onChange={setCoverImage} />
 
         {/* Right: Form Fields */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Event Name */}
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Event Name"
-            className="border-0 text-3xl font-bold placeholder:text-muted-foreground/40 focus-visible:ring-0 p-0 h-auto tracking-tight"
+            className="border-0 text-4xl md:text-5xl font-bold placeholder:text-muted-foreground/30 focus-visible:ring-0 p-0 h-auto tracking-tight leading-tight"
             required
           />
 
           {/* Date/Time Section */}
-          <div className="rounded-xl border bg-muted/30 p-4">
-            <div className="flex gap-4">
-              <div className="flex-1 space-y-3">
+          <div className="rounded-xl border bg-muted/30 p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <div className="flex-1 space-y-2">
                 <DateTimePicker
                   label="Start"
                   value={startDate}
@@ -114,26 +117,28 @@ export function EventForm({ event }: { event?: Event }) {
                   onChange={setEndDate}
                 />
               </div>
-              <TimezoneDisplay />
+              <div className="self-center sm:self-auto">
+                <TimezonePicker value={timezone} onChange={setTimezone} />
+              </div>
             </div>
           </div>
 
           {/* Location */}
-          <div className="flex items-center gap-3 rounded-xl border bg-muted/30 p-4">
-            <MapPin className="h-5 w-5 text-muted-foreground shrink-0" />
+          <div className="flex items-center gap-3 rounded-xl border bg-muted/30 px-3 py-2.5 sm:px-4 sm:py-3">
+            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
             <Input
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Add Event Location"
-              className="border-0 bg-transparent p-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground"
+              className="border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0 placeholder:text-muted-foreground"
             />
           </div>
 
           {/* Description */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2 text-muted-foreground">
-              <FileText className="h-4 w-4" />
-              <span className="text-sm font-medium">Description</span>
+              <FileText className="h-3.5 w-3.5" />
+              <span className="text-xs font-medium">Description</span>
             </div>
             <TiptapEditor
               content={description}
@@ -143,19 +148,19 @@ export function EventForm({ event }: { event?: Event }) {
           </div>
 
           {/* Event Options */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-medium text-muted-foreground">
+          <div className="space-y-2">
+            <h3 className="text-xs font-medium text-muted-foreground">
               Event Options
             </h3>
             <div className="rounded-xl border divide-y">
               {/* Event Type */}
-              <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2.5">
                 <div className="flex items-center gap-3">
                   <Ticket className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">Event Type</span>
                 </div>
                 <Select value={eventType} onValueChange={(v) => setEventType(v as 'waitlist' | 'lottery')}>
-                  <SelectTrigger className="w-[130px] h-8 text-sm">
+                  <SelectTrigger className="w-[120px] h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -166,7 +171,7 @@ export function EventForm({ event }: { event?: Event }) {
               </div>
 
               {/* Capacity */}
-              <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2.5">
                 <div className="flex items-center gap-3">
                   <Users className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">Capacity</span>
@@ -177,36 +182,34 @@ export function EventForm({ event }: { event?: Event }) {
                   value={capacity}
                   onChange={(e) => setCapacity(e.target.value)}
                   placeholder="e.g. 50"
-                  className="w-[130px] h-8 text-sm text-right"
+                  className="w-[120px] h-8 text-sm text-right"
                   required
                 />
               </div>
 
               {/* Lottery Deadline (conditional) */}
               {eventType === 'lottery' && (
-                <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between px-3 sm:px-4 py-2.5 gap-2">
                   <div className="flex items-center gap-3">
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">Lottery Deadline</span>
                   </div>
-                  <div className="scale-90 origin-right">
-                    <DateTimePicker
-                      label=""
-                      value={lotteryDeadline}
-                      onChange={setLotteryDeadline}
-                    />
-                  </div>
+                  <DateTimePicker
+                    label=""
+                    value={lotteryDeadline}
+                    onChange={setLotteryDeadline}
+                  />
                 </div>
               )}
 
               {/* Status */}
-              <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2.5">
                 <div className="flex items-center gap-3">
                   <ToggleLeft className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">Status</span>
                 </div>
                 <Select value={status} onValueChange={(v) => setStatus(v as 'draft' | 'open')}>
-                  <SelectTrigger className="w-[130px] h-8 text-sm">
+                  <SelectTrigger className="w-[120px] h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

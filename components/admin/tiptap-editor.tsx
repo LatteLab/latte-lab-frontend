@@ -92,8 +92,8 @@ export function TiptapEditor({
       <EditorContent
         editor={editor}
         className={cn(
-          'p-3',
-          '[&_.tiptap]:outline-none [&_.tiptap]:min-h-[150px]',
+          'p-3 h-[200px] overflow-y-auto',
+          '[&_.tiptap]:outline-none [&_.tiptap]:min-h-full',
           '[&_.tiptap_p]:mb-2',
           '[&_.tiptap_ul]:list-disc [&_.tiptap_ul]:pl-4 [&_.tiptap_ul]:mb-2',
           '[&_.tiptap_ol]:list-decimal [&_.tiptap_ol]:pl-4 [&_.tiptap_ol]:mb-2',
