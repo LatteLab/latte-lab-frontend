@@ -1,6 +1,6 @@
 import { auth } from '@/auth';
 import { redirect, notFound } from 'next/navigation';
-import { getEventById, getUserRegistration, getEventRegistrations, getRegistrationCount } from '@/lib/db/event-queries';
+import { getEventById, getUserRegistration, getEventRegistrations, getRegistrationCount, hasEventAccess } from '@/lib/db/event-queries';
 import { EventRegistrationButton } from '@/components/user/event-registration-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar, MapPin, Users, Clock } from 'lucide-react';
@@ -30,6 +30,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const event = await getEventById(id);
   if (!event || event.status === 'draft') notFound();
+
+  // Access check for invite-only events
+  if (event.type === 'invite_only') {
+    const access = await hasEventAccess(session.user.id, id);
+    if (!access) notFound();
+  }
 
   const [registration, registrations, confirmedCount] = await Promise.all([
     getUserRegistration(session.user.id, id),
