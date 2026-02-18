@@ -240,8 +240,8 @@ export async function getUserEvents(userId: string, filter?: 'upcoming' | 'past'
     .groupBy(eventRegistrations.eventId)
     .as('confirmed_counts');
 
-  // Single query: user registrations + events + aggregated counts
-  const rows = await db
+  // Registered events
+  const registeredRows = await db
     .select({
       event: events,
       registrationStatus: eventRegistrations.status,
@@ -253,7 +253,47 @@ export async function getUserEvents(userId: string, filter?: 'upcoming' | 'past'
     .where(and(...conditions))
     .orderBy(filter === 'past' ? desc(events.date) : events.date);
 
-  return rows.map((row) => ({
+  // Accessed invite-only events (where user has access but no registration)
+  const accessConditions = [
+    eq(eventAccess.userId, userId),
+    eq(events.type, 'invite_only'),
+    ne(events.status, 'draft'),
+  ];
+
+  if (filter === 'upcoming') {
+    accessConditions.push(gte(events.date, now));
+  } else if (filter === 'past') {
+    accessConditions.push(lt(events.date, now));
+  }
+
+  const accessedRows = await db
+    .select({
+      event: events,
+      registeredCount: confirmedCounts.count,
+    })
+    .from(eventAccess)
+    .innerJoin(events, eq(eventAccess.eventId, events.id))
+    .leftJoin(confirmedCounts, eq(events.id, confirmedCounts.eventId))
+    .where(and(...accessConditions));
+
+  // Merge: accessed events that aren't already in registered list
+  const registeredEventIds = new Set(registeredRows.map(r => r.event.id));
+  const accessOnly = accessedRows
+    .filter(r => !registeredEventIds.has(r.event.id))
+    .map(r => ({
+      event: r.event,
+      registrationStatus: null as string | null,
+      registeredCount: r.registeredCount ?? 0,
+    }));
+
+  const all = [...registeredRows, ...accessOnly];
+  all.sort((a, b) => {
+    const dateA = new Date(a.event.date).getTime();
+    const dateB = new Date(b.event.date).getTime();
+    return filter === 'past' ? dateB - dateA : dateA - dateB;
+  });
+
+  return all.map((row) => ({
     event: row.event,
     registrationStatus: row.registrationStatus,
     registeredCount: row.registeredCount ?? 0,

@@ -4,7 +4,7 @@ import { TimelineEventCard } from './event-card';
 interface EventTimelineProps {
   events: Array<{
     event: Event;
-    registrationStatus: string;
+    registrationStatus: string | null;
     registeredCount: number;
   }>;
 }

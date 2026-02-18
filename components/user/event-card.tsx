@@ -13,7 +13,7 @@ function formatTime(date: Date) {
   });
 }
 
-function getStatusBadge(status: string) {
+function getStatusBadge(status: string | null) {
   switch (status) {
     case 'registered':
     case 'selected':
@@ -23,6 +23,8 @@ function getStatusBadge(status: string) {
       return { label: 'Waitlist', className: 'bg-amber-500/15 text-amber-700 border-amber-500/25 dark:text-amber-400' };
     case 'lottery_entered':
       return { label: 'Lottery Entered', className: 'bg-purple-500/15 text-purple-700 border-purple-500/25 dark:text-purple-400' };
+    case 'pending_approval':
+      return { label: 'Pending Approval', className: 'bg-amber-500/15 text-amber-600 border-amber-500/25 dark:text-amber-400' };
     case 'rejected':
       return { label: 'Not Selected', className: 'bg-gray-500/15 text-gray-600 border-gray-500/25 dark:text-gray-400' };
     case 'no_show':
@@ -34,7 +36,7 @@ function getStatusBadge(status: string) {
 
 interface TimelineEventCardProps {
   event: Event;
-  registrationStatus: string;
+  registrationStatus: string | null;
   registeredCount: number;
 }
 
