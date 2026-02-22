@@ -2,6 +2,7 @@ import { db } from './index';
 import { events, eventRegistrations, eventAccess, lotteryHistory, users, semesters } from './schema';
 import { eq, and, desc, gte, lt, count, inArray } from 'drizzle-orm';
 import type { Event, NewEvent, EventRegistration } from './schema';
+import type { RegistrationRow, RegistrationWithStats } from '@/lib/types/event';
 
 // ============================================================================
 // Event Queries
@@ -104,8 +105,10 @@ export async function getUserAccessedEventIds(userId: string): Promise<string[]>
 // Registration Queries
 // ============================================================================
 
-export async function getEventRegistrations(eventId: string) {
-  return db.select({
+export async function getEventRegistrations(eventId: string): Promise<RegistrationRow[]>;
+export async function getEventRegistrations(eventId: string, options: { withStats: true }): Promise<RegistrationWithStats[]>;
+export async function getEventRegistrations(eventId: string, options?: { withStats?: boolean }): Promise<RegistrationRow[]> {
+  const registrations: RegistrationRow[] = await db.select({
     registration: eventRegistrations,
     user: {
       id: users.id,
@@ -118,54 +121,37 @@ export async function getEventRegistrations(eventId: string) {
     .innerJoin(users, eq(eventRegistrations.userId, users.id))
     .where(eq(eventRegistrations.eventId, eventId))
     .orderBy(eventRegistrations.createdAt);
-}
 
-export async function getEventRegistrationsWithStats(eventId: string) {
-  const registrations = await getEventRegistrations(eventId);
-  if (registrations.length === 0) return [];
+  if (!options?.withStats || registrations.length === 0) return registrations;
 
   const semesterLabel = await getCurrentSemesterLabel();
   const userIds = registrations.map(r => r.user.id);
 
-  // Batch: no-show counts
-  const noShowRows = await db.select({
-    userId: eventRegistrations.userId,
-    count: count(),
-  })
-    .from(eventRegistrations)
-    .where(and(
-      inArray(eventRegistrations.userId, userIds),
-      eq(eventRegistrations.status, 'no_show')
-    ))
-    .groupBy(eventRegistrations.userId);
+  const [noShowRows, attendedRows, lastEventRows, lotteryRows] = await Promise.all([
+    db.select({ userId: eventRegistrations.userId, count: count() })
+      .from(eventRegistrations)
+      .where(and(inArray(eventRegistrations.userId, userIds), eq(eventRegistrations.status, 'no_show')))
+      .groupBy(eventRegistrations.userId),
+
+    db.select({ userId: eventRegistrations.userId, count: count() })
+      .from(eventRegistrations)
+      .where(and(inArray(eventRegistrations.userId, userIds), eq(eventRegistrations.status, 'checked_in')))
+      .groupBy(eventRegistrations.userId),
+
+    db.select({ userId: eventRegistrations.userId, eventName: events.name, eventDate: events.date })
+      .from(eventRegistrations)
+      .innerJoin(events, eq(eventRegistrations.eventId, events.id))
+      .where(and(inArray(eventRegistrations.userId, userIds), eq(eventRegistrations.status, 'checked_in')))
+      .orderBy(desc(events.date)),
+
+    db.select({ userId: lotteryHistory.userId, outcome: lotteryHistory.outcome, count: count() })
+      .from(lotteryHistory)
+      .where(and(inArray(lotteryHistory.userId, userIds), eq(lotteryHistory.semester, semesterLabel)))
+      .groupBy(lotteryHistory.userId, lotteryHistory.outcome),
+  ]);
+
   const noShowMap = new Map(noShowRows.map(r => [r.userId, r.count]));
-
-  // Batch: checked-in counts
-  const attendedRows = await db.select({
-    userId: eventRegistrations.userId,
-    count: count(),
-  })
-    .from(eventRegistrations)
-    .where(and(
-      inArray(eventRegistrations.userId, userIds),
-      eq(eventRegistrations.status, 'checked_in')
-    ))
-    .groupBy(eventRegistrations.userId);
   const attendedMap = new Map(attendedRows.map(r => [r.userId, r.count]));
-
-  // Batch: last event attended
-  const lastEventRows = await db.select({
-    userId: eventRegistrations.userId,
-    eventName: events.name,
-    eventDate: events.date,
-  })
-    .from(eventRegistrations)
-    .innerJoin(events, eq(eventRegistrations.eventId, events.id))
-    .where(and(
-      inArray(eventRegistrations.userId, userIds),
-      eq(eventRegistrations.status, 'checked_in')
-    ))
-    .orderBy(desc(events.date));
 
   const lastEventMap = new Map<string, { name: string; date: Date }>();
   for (const row of lastEventRows) {
@@ -173,19 +159,6 @@ export async function getEventRegistrationsWithStats(eventId: string) {
       lastEventMap.set(row.userId, { name: row.eventName, date: row.eventDate });
     }
   }
-
-  // Batch: semester lottery stats
-  const lotteryRows = await db.select({
-    userId: lotteryHistory.userId,
-    outcome: lotteryHistory.outcome,
-    count: count(),
-  })
-    .from(lotteryHistory)
-    .where(and(
-      inArray(lotteryHistory.userId, userIds),
-      eq(lotteryHistory.semester, semesterLabel)
-    ))
-    .groupBy(lotteryHistory.userId, lotteryHistory.outcome);
 
   const lotteryMap = new Map<string, { wins: number; losses: number }>();
   for (const row of lotteryRows) {

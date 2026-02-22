@@ -1,3 +1,12 @@
+import type { EventRegistration } from '@/lib/db/schema';
+
+export interface RegistrationUser {
+  id: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+}
+
 export interface RegistrationStats {
   noShowCount: number;
   eventsAttended: number;
@@ -7,21 +16,19 @@ export interface RegistrationStats {
   semesterLotteryLosses: number;
 }
 
-export interface Registration {
-  registration: {
-    id: string;
-    status: string;
-    lotteryPriorityScore: number | null;
-    createdAt: Date;
-  };
-  user: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    image: string | null;
-  };
-  stats?: RegistrationStats;
+/** Base registration row returned by getEventRegistrations() */
+export interface RegistrationRow {
+  registration: EventRegistration;
+  user: RegistrationUser;
 }
+
+/** Registration row enriched with stats via getEventRegistrations(id, { withStats: true }) */
+export interface RegistrationWithStats extends RegistrationRow {
+  stats: RegistrationStats;
+}
+
+/** Component-friendly type — stats may or may not be present */
+export type Registration = RegistrationRow & { stats?: RegistrationStats };
 
 export const statusColors: Record<string, string> = {
   registered: 'bg-green-500/10 text-green-500 border-green-500/20',

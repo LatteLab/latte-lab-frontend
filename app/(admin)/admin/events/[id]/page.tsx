@@ -1,6 +1,6 @@
 import { auth } from '@/auth';
 import { redirect, notFound } from 'next/navigation';
-import { getEventById, getEventRegistrationsWithStats } from '@/lib/db/event-queries';
+import { getEventById, getEventRegistrations } from '@/lib/db/event-queries';
 import { PageHeader } from '@/components/ui/page-header';
 import { EventManagementTabs } from '@/components/admin/event-management-tabs';
 
@@ -13,7 +13,7 @@ export default async function AdminEventDetailPage({ params }: { params: Promise
   const event = await getEventById(id);
   if (!event) notFound();
 
-  const registrations = await getEventRegistrationsWithStats(id);
+  const registrations = await getEventRegistrations(id, { withStats: true });
 
   return (
     <>
