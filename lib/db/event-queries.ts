@@ -57,6 +57,12 @@ export async function updateEvent(id: string, data: Partial<NewEvent>): Promise<
   return event;
 }
 
+export async function deleteEvent(id: string) {
+  // event_registrations, event_access, lottery_history all have onDelete: cascade
+  // so deleting the event cascades to all related rows
+  await db.delete(events).where(eq(events.id, id));
+}
+
 // ============================================================================
 // Event Access Queries (for private events)
 // ============================================================================

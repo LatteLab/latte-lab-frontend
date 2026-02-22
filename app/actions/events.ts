@@ -2,9 +2,11 @@
 
 import { auth } from '@/auth';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import {
   createEvent as dbCreateEvent,
   updateEvent as dbUpdateEvent,
+  deleteEvent as dbDeleteEvent,
   getEventById,
   createRegistration,
   deleteRegistration,
@@ -363,4 +365,18 @@ export async function regenerateInviteCode(eventId: string) {
 
   revalidatePath(`/admin/events/${eventId}`);
   return newCode;
+}
+
+export async function deleteEventAction(eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const event = await getEventById(eventId);
+  if (!event) throw new Error('Event not found');
+
+  await dbDeleteEvent(eventId);
+
+  revalidatePath('/admin/events');
+  revalidatePath('/user/events');
+  redirect('/admin/events');
 }

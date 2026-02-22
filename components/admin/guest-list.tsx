@@ -1,0 +1,321 @@
+'use client';
+
+import { useState, useMemo, useTransition } from 'react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { LotteryDraw } from '@/components/admin/lottery-draw';
+import { approveRegistration, denyRegistration, removeRegistration } from '@/app/actions/events';
+import { toast } from 'sonner';
+import { Search, ClipboardCheck, Trash2, Check, X } from 'lucide-react';
+import Link from 'next/link';
+import type { Event } from '@/lib/db/schema';
+
+interface Registration {
+  registration: {
+    id: string;
+    status: string;
+    lotteryPriorityScore: number | null;
+    createdAt: Date;
+  };
+  user: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  };
+}
+
+const statusColors: Record<string, string> = {
+  registered: 'bg-green-500/10 text-green-500 border-green-500/20',
+  waitlisted: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+  selected: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  rejected: 'bg-red-500/10 text-red-500 border-red-500/20',
+  checked_in: 'bg-green-500/10 text-green-700 border-green-500/20',
+  no_show: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
+  pending_approval: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+};
+
+type StatusFilter = 'all' | 'going' | 'pending_approval' | 'waitlisted' | 'rejected' | 'not_going' | 'checked_in';
+type SortBy = 'register_time' | 'name' | 'email' | 'status';
+
+const STATUS_FILTER_MAP: Record<StatusFilter, string[]> = {
+  all: [],
+  going: ['registered', 'selected', 'checked_in'],
+  pending_approval: ['pending_approval'],
+  waitlisted: ['waitlisted'],
+  rejected: ['rejected'],
+  not_going: ['no_show'],
+  checked_in: ['checked_in'],
+};
+
+function formatRelativeTime(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - new Date(date).getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
+export function GuestList({
+  event,
+  registrations,
+}: {
+  event: Event;
+  registrations: Registration[];
+}) {
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [sortBy, setSortBy] = useState<SortBy>('register_time');
+  const [isPending, startTransition] = useTransition();
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const r of registrations) {
+      c[r.registration.status] = (c[r.registration.status] || 0) + 1;
+    }
+    return {
+      all: registrations.length,
+      going: (c['registered'] || 0) + (c['selected'] || 0) + (c['checked_in'] || 0),
+      pending_approval: c['pending_approval'] || 0,
+      waitlisted: c['waitlisted'] || 0,
+      rejected: c['rejected'] || 0,
+      not_going: c['no_show'] || 0,
+      checked_in: c['checked_in'] || 0,
+    };
+  }, [registrations]);
+
+  const goingCount = counts.going;
+  const percent = event.capacity > 0 ? Math.round((goingCount / event.capacity) * 100) : 0;
+
+  const displayed = useMemo(() => {
+    let list = [...registrations];
+
+    const allowedStatuses = STATUS_FILTER_MAP[statusFilter];
+    if (allowedStatuses.length > 0) {
+      list = list.filter(r => allowedStatuses.includes(r.registration.status));
+    }
+
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(r =>
+        r.user.name?.toLowerCase().includes(q) ||
+        r.user.email?.toLowerCase().includes(q)
+      );
+    }
+
+    list.sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return (a.user.name || '').localeCompare(b.user.name || '');
+        case 'email':
+          return (a.user.email || '').localeCompare(b.user.email || '');
+        case 'status':
+          return a.registration.status.localeCompare(b.registration.status);
+        case 'register_time':
+        default:
+          return new Date(b.registration.createdAt).getTime() - new Date(a.registration.createdAt).getTime();
+      }
+    });
+
+    return list;
+  }, [registrations, statusFilter, search, sortBy]);
+
+  const handleApprove = (registrationId: string) => {
+    startTransition(async () => {
+      try {
+        await approveRegistration(registrationId, event.id);
+        toast.success('Registration approved');
+      } catch {
+        toast.error('Failed to approve registration');
+      }
+    });
+  };
+
+  const handleDeny = (registrationId: string) => {
+    startTransition(async () => {
+      try {
+        await denyRegistration(registrationId, event.id);
+        toast.success('Registration denied');
+      } catch {
+        toast.error('Failed to deny registration');
+      }
+    });
+  };
+
+  const handleRemove = (registrationId: string) => {
+    startTransition(async () => {
+      try {
+        await removeRegistration(registrationId, event.id);
+        toast.success('Registration removed');
+      } catch {
+        toast.error('Failed to remove registration');
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* At a Glance */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">At a Glance</h3>
+        <div className="flex items-baseline justify-between">
+          <div className="flex items-baseline gap-4">
+            <span className="text-sm">
+              <span className="text-2xl font-bold">{goingCount}</span>{' '}
+              <span className="text-muted-foreground">Going</span>
+            </span>
+            {counts.pending_approval > 0 && (
+              <span className="text-sm">
+                <span className="text-lg font-bold text-amber-600">{counts.pending_approval}</span>{' '}
+                <span className="text-muted-foreground">Pending</span>
+              </span>
+            )}
+          </div>
+          <span className="text-sm text-muted-foreground">cap {event.capacity}</span>
+        </div>
+        <Progress value={Math.min(percent, 100)} className="h-2" />
+      </div>
+
+      {/* Actions */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Link href={`/admin/events/${event.id}/checkin`}>
+          <Button variant="outline" size="sm">
+            <ClipboardCheck className="h-3.5 w-3.5 mr-1.5" />
+            Check In Guests
+          </Button>
+        </Link>
+        {event.requireApproval && event.status === 'open' && (
+          <LotteryDraw eventId={event.id} entrantCount={counts.pending_approval} />
+        )}
+      </div>
+
+      {/* Guest List */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold">Guest List</h3>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search guests..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+            <SelectTrigger className="w-[180px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Guests ({counts.all})</SelectItem>
+              <SelectItem value="going">Going ({counts.going})</SelectItem>
+              <SelectItem value="pending_approval">Pending Approval ({counts.pending_approval})</SelectItem>
+              <SelectItem value="waitlisted">Waitlisted ({counts.waitlisted})</SelectItem>
+              <SelectItem value="rejected">Rejected ({counts.rejected})</SelectItem>
+              <SelectItem value="not_going">Not Going ({counts.not_going})</SelectItem>
+              <SelectItem value="checked_in">Checked In ({counts.checked_in})</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
+            <SelectTrigger className="w-[160px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="register_time">Register Time</SelectItem>
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="email">Email</SelectItem>
+              <SelectItem value="status">Status</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {displayed.length === 0 ? (
+          <p className="py-8 text-center text-muted-foreground text-sm">No guests found.</p>
+        ) : (
+          <div className="space-y-1">
+            {displayed.map(({ registration, user }) => (
+              <div key={registration.id} className="flex items-center justify-between rounded-lg border p-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user.image || undefined} />
+                    <AvatarFallback className="text-xs">
+                      {user.name?.split(' ').map(n => n[0]).join('') || '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{user.name || 'Unknown'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 ml-2">
+                  {event.requireApproval && registration.lotteryPriorityScore != null && (
+                    <span className="text-xs text-muted-foreground">
+                      Score: {registration.lotteryPriorityScore.toFixed(1)}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    {formatRelativeTime(registration.createdAt)}
+                  </span>
+                  <Badge variant="outline" className={`text-xs ${statusColors[registration.status] || ''}`}>
+                    {registration.status.replace('_', ' ')}
+                  </Badge>
+                  {registration.status === 'pending_approval' ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-500/10"
+                        onClick={() => handleApprove(registration.id)}
+                        disabled={isPending}
+                        title="Approve"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-500/10"
+                        onClick={() => handleDeny(registration.id)}
+                        disabled={isPending}
+                        title="Decline"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => handleRemove(registration.id)}
+                      disabled={isPending}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

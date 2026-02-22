@@ -16,7 +16,12 @@ export default async function CheckinPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="flex h-screen flex-col">
-      <CheckinList attendees={attendees} eventId={id} eventName={event.name} />
+      <CheckinList
+        attendees={attendees}
+        eventId={id}
+        eventName={event.name}
+        eventDate={event.date}
+      />
     </div>
   );
 }
