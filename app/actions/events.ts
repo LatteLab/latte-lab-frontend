@@ -286,6 +286,16 @@ export async function removeRegistration(registrationId: string, eventId: string
   revalidatePath(`/admin/events/${eventId}`);
 }
 
+async function getPendingRegistration(registrationId: string, eventId: string) {
+  const regs = await getEventRegistrations(eventId);
+  const reg = regs.find(r => r.registration.id === registrationId);
+  if (!reg) throw new Error('Registration not found');
+  if (reg.registration.status !== 'pending_approval') {
+    throw new Error('Registration is not pending approval');
+  }
+  return reg;
+}
+
 export async function approveRegistration(registrationId: string, eventId: string) {
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
@@ -293,13 +303,7 @@ export async function approveRegistration(registrationId: string, eventId: strin
   const event = await getEventById(eventId);
   if (!event) throw new Error('Event not found');
 
-  // Verify registration belongs to this event and is pending
-  const regs = await getEventRegistrations(eventId);
-  const reg = regs.find(r => r.registration.id === registrationId);
-  if (!reg) throw new Error('Registration not found');
-  if (reg.registration.status !== 'pending_approval') {
-    throw new Error('Registration is not pending approval');
-  }
+  await getPendingRegistration(registrationId, eventId);
 
   // Check capacity before approving (except lottery which has its own mechanism)
   if (event.type !== 'lottery') {
@@ -309,12 +313,7 @@ export async function approveRegistration(registrationId: string, eventId: strin
     }
   }
 
-  // Determine the appropriate status after approval
-  let newStatus: 'registered' | 'lottery_entered' = 'registered';
-  if (event.type === 'lottery') {
-    newStatus = 'lottery_entered';
-  }
-
+  const newStatus = event.type === 'lottery' ? 'lottery_entered' : 'registered';
   await updateRegistration(registrationId, { status: newStatus });
 
   revalidatePath(`/admin/events/${eventId}`);
@@ -325,14 +324,7 @@ export async function denyRegistration(registrationId: string, eventId: string) 
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
-  // Verify registration belongs to this event and is pending
-  const regs = await getEventRegistrations(eventId);
-  const reg = regs.find(r => r.registration.id === registrationId);
-  if (!reg) throw new Error('Registration not found');
-  if (reg.registration.status !== 'pending_approval') {
-    throw new Error('Registration is not pending approval');
-  }
-
+  await getPendingRegistration(registrationId, eventId);
   await updateRegistration(registrationId, { status: 'rejected' });
 
   revalidatePath(`/admin/events/${eventId}`);
