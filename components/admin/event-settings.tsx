@@ -14,17 +14,21 @@ import { CloseRegistrationButton } from '@/components/admin/close-registration-b
 import { InviteLinkCard } from '@/components/admin/invite-link-card';
 import { deleteEventAction } from '@/app/actions/events';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 import { Trash2 } from 'lucide-react';
 import type { Event } from '@/lib/db/schema';
 
 export function EventSettings({ event }: { event: Event }) {
   const [showDelete, setShowDelete] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const handleDelete = () => {
     startTransition(async () => {
       try {
         await deleteEventAction(event.id);
+        toast.success('Event deleted');
+        router.push('/admin/events');
       } catch {
         toast.error('Failed to delete event');
       }

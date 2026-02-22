@@ -2,7 +2,6 @@
 
 import { auth } from '@/auth';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import {
   createEvent as dbCreateEvent,
   updateEvent as dbUpdateEvent,
@@ -378,5 +377,4 @@ export async function deleteEventAction(eventId: string) {
 
   revalidatePath('/admin/events');
   revalidatePath('/user/events');
-  redirect('/admin/events');
 }
