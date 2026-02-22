@@ -324,7 +324,8 @@ export async function computePriorityScore(userId: string): Promise<number> {
     getUserLotteryStats(userId, semesterLabel),
     getUserNoShowCount(userId),
   ]);
-  return 1.0 + (stats.losses * 0.5) - (stats.wins * 0.75) - (noShowCount * 1.5);
+  const raw = 1.0 + (stats.losses * 0.5) - (stats.wins * 0.75) - (noShowCount * 1.5);
+  return Math.max(raw, 0.1);
 }
 
 export async function createLotteryHistoryEntries(

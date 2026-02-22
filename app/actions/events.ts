@@ -20,7 +20,11 @@ import {
   createEventAccess,
   hasEventAccess,
   getCurrentSemesterLabel,
+  getUserEventHistory,
+  getUserLotteryStats,
+  getUserNoShowCount,
 } from '@/lib/db/event-queries';
+import { getUserById } from '@/lib/db/queries';
 import { createEventSchema, updateEventSchema } from '@/lib/validations/events';
 
 export async function createEventAction(formData: FormData) {
@@ -186,7 +190,7 @@ export async function runLotteryDraft(eventId: string) {
   const scored = await Promise.all(
     entrants.map(async (entry) => {
       const score = await computePriorityScore(entry.user.id);
-      return { ...entry, score: Math.max(score, 0.1) };
+      return { ...entry, score };
     })
   );
 
@@ -271,7 +275,7 @@ export async function rerollLottery(eventId: string) {
 
   const scored = await Promise.all(
     draftRejected.map(async (entry) => {
-      const score = entry.registration.lotteryPriorityScore ?? Math.max(await computePriorityScore(entry.user.id), 0.1);
+      const score = entry.registration.lotteryPriorityScore ?? await computePriorityScore(entry.user.id);
       return { ...entry, score };
     })
   );
@@ -514,9 +518,6 @@ export async function deleteEventAction(eventId: string) {
 export async function getUserDetailForModal(userId: string) {
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
-
-  const { getUserById } = await import('@/lib/db/queries');
-  const { getUserEventHistory, getUserLotteryStats, getUserNoShowCount, getCurrentSemesterLabel } = await import('@/lib/db/event-queries');
 
   const user = await getUserById(userId);
   if (!user) return null;
