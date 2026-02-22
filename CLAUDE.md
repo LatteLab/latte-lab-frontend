@@ -68,9 +68,10 @@ lib/
 
 - `user`, `account`, `session`, `authenticator` — NextAuth tables
 - `admin_whitelist` — Admin email whitelist
-- `events` — Event details (type: waitlist/lottery, status: draft/published/closed)
+- `events` — Event details (status: open/closed/completed, lotteryStatus: draft/finalized)
 - `event_registrations` — User registrations with status tracking
 - `lottery_history` — Lottery draw outcomes and priority scores
+- `semesters` — Academic semester tracking (auto-detected or admin override)
 
 ## Key Patterns
 
@@ -91,6 +92,10 @@ if (!session?.user) throw new Error("Unauthorized");
 // validate with Zod, mutate with Drizzle, revalidatePath
 ```
 
+**Every exported function in a `'use server'` file is a public HTTP endpoint.** Always add auth checks, even for read-only functions like `getSemesterData()`. Admin mutations must check `session.user.isAdmin`.
+
+**Type derivation:** Derive shared types from Drizzle schema (`$inferSelect`) rather than manually redeclaring field subsets. See `lib/types/event.ts` for the `RegistrationRow`/`RegistrationWithStats`/`Registration` pattern.
+
 **Component styling:** Use `cn()` for conditional Tailwind classes.
 
 **Server vs Client:** Pages are server components; interactive parts use `'use client'`.
@@ -99,3 +104,4 @@ if (!session?.user) throw new Error("Unauthorized");
 
 - Supabase Storage RLS: client uses anon key, so policies must include `anon` role (not just `authenticated`)
 - `redirect()` in server actions throws internally (NEXT_REDIRECT). Never wrap server action calls that use `redirect()` in try/catch — it catches the redirect as an error. If you need a toast + navigation after a mutation, skip `redirect()` in the action and use `router.push()` client-side instead.
+- `pnpm db:push` may conflict when multiple worktrees target the same Supabase DB. For schema changes from a non-primary worktree, apply SQL directly via Supabase MCP (`apply_migration` or `execute_sql`).
