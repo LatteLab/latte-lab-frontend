@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -9,7 +9,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { CloseRegistrationButton } from '@/components/admin/close-registration-button';
 import { InviteLinkCard } from '@/components/admin/invite-link-card';
@@ -19,6 +18,7 @@ import { Trash2 } from 'lucide-react';
 import type { Event } from '@/lib/db/schema';
 
 export function EventSettings({ event }: { event: Event }) {
+  const [showDelete, setShowDelete] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const handleDelete = () => {
@@ -68,13 +68,11 @@ export function EventSettings({ event }: { event: Event }) {
                 Permanently delete this event and all registrations. This cannot be undone.
               </p>
             </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="destructive" size="sm">
-                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                  Delete
-                </Button>
-              </DialogTrigger>
+            <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Delete
+            </Button>
+            <Dialog open={showDelete} onOpenChange={setShowDelete}>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Delete Event</DialogTitle>
@@ -85,6 +83,7 @@ export function EventSettings({ event }: { event: Event }) {
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowDelete(false)}>Cancel</Button>
                   <Button variant="destructive" onClick={handleDelete} disabled={isPending}>
                     {isPending ? 'Deleting...' : 'Delete Event'}
                   </Button>

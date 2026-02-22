@@ -21,6 +21,7 @@ export default async function CheckinPage({ params }: { params: Promise<{ id: st
         eventId={id}
         eventName={event.name}
         eventDate={event.date}
+        eventStatus={event.status}
       />
     </div>
   );

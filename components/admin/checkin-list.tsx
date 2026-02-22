@@ -31,11 +31,13 @@ export function CheckinList({
   eventId,
   eventName,
   eventDate,
+  eventStatus,
 }: {
   attendees: Attendee[];
   eventId: string;
   eventName: string;
   eventDate: Date;
+  eventStatus: string;
 }) {
   const [search, setSearch] = useState('');
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
@@ -239,15 +241,17 @@ export function CheckinList({
       </div>
 
       {/* Close event button */}
-      <div className="shrink-0 border-t p-4">
-        <Button
-          variant="destructive"
-          className="w-full"
-          onClick={() => setShowClose(true)}
-        >
-          Close Event
-        </Button>
-      </div>
+      {eventStatus !== 'closed' && (
+        <div className="shrink-0 border-t p-4">
+          <Button
+            variant="destructive"
+            className="w-full"
+            onClick={() => setShowClose(true)}
+          >
+            Close Event
+          </Button>
+        </div>
+      )}
 
       <Dialog open={showClose} onOpenChange={setShowClose}>
         <DialogContent>

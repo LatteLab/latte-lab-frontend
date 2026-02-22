@@ -26,31 +26,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import type { Event } from '@/lib/db/schema';
-
-interface Registration {
-  registration: {
-    id: string;
-    status: string;
-    lotteryPriorityScore: number | null;
-    createdAt: Date;
-  };
-  user: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    image: string | null;
-  };
-}
-
-const statusColors: Record<string, string> = {
-  registered: 'bg-green-500/10 text-green-500 border-green-500/20',
-  waitlisted: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-  selected: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  rejected: 'bg-red-500/10 text-red-500 border-red-500/20',
-  checked_in: 'bg-green-500/10 text-green-700 border-green-500/20',
-  no_show: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
-  pending_approval: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-};
+import type { Registration } from '@/lib/types/event';
+import { statusColors } from '@/lib/types/event';
 
 export function EventOverview({
   event,
@@ -75,14 +52,18 @@ export function EventOverview({
     .slice(0, 5);
 
   const handleCopyLink = async () => {
-    const baseUrl = window.location.origin;
-    const url = event.visibility === 'private' && event.inviteCode
-      ? `${baseUrl}/invite/${event.inviteCode}`
-      : `${baseUrl}/user/events/${event.id}`;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    toast.success('Link copied');
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      const baseUrl = window.location.origin;
+      const url = event.visibility === 'private' && event.inviteCode
+        ? `${baseUrl}/invite/${event.inviteCode}`
+        : `${baseUrl}/user/events/${event.id}`;
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success('Link copied');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy link');
+    }
   };
 
   const handleApprove = (registrationId: string) => {
@@ -275,7 +256,7 @@ export function EventOverview({
                       </>
                     ) : (
                       <Badge variant="outline" className={`text-xs ${statusColors[registration.status] || ''}`}>
-                        {registration.status.replace('_', ' ')}
+                        {registration.status.replaceAll('_', ' ')}
                       </Badge>
                     )}
                   </div>

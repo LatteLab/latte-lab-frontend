@@ -6,21 +6,7 @@ import { EventOverview } from '@/components/admin/event-overview';
 import { GuestList } from '@/components/admin/guest-list';
 import { EventSettings } from '@/components/admin/event-settings';
 import type { Event } from '@/lib/db/schema';
-
-interface Registration {
-  registration: {
-    id: string;
-    status: string;
-    lotteryPriorityScore: number | null;
-    createdAt: Date;
-  };
-  user: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    image: string | null;
-  };
-}
+import type { Registration } from '@/lib/types/event';
 
 export function EventManagementTabs({
   event,

@@ -19,31 +19,8 @@ import { toast } from 'sonner';
 import { Search, ClipboardCheck, Trash2, Check, X } from 'lucide-react';
 import Link from 'next/link';
 import type { Event } from '@/lib/db/schema';
-
-interface Registration {
-  registration: {
-    id: string;
-    status: string;
-    lotteryPriorityScore: number | null;
-    createdAt: Date;
-  };
-  user: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    image: string | null;
-  };
-}
-
-const statusColors: Record<string, string> = {
-  registered: 'bg-green-500/10 text-green-500 border-green-500/20',
-  waitlisted: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-  selected: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  rejected: 'bg-red-500/10 text-red-500 border-red-500/20',
-  checked_in: 'bg-green-500/10 text-green-700 border-green-500/20',
-  no_show: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
-  pending_approval: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-};
+import type { Registration } from '@/lib/types/event';
+import { statusColors } from '@/lib/types/event';
 
 type StatusFilter = 'all' | 'going' | 'pending_approval' | 'waitlisted' | 'rejected' | 'not_going' | 'checked_in';
 type SortBy = 'register_time' | 'name' | 'email' | 'status';
@@ -274,7 +251,7 @@ export function GuestList({
                     {formatRelativeTime(registration.createdAt)}
                   </span>
                   <Badge variant="outline" className={`text-xs ${statusColors[registration.status] || ''}`}>
-                    {registration.status.replace('_', ' ')}
+                    {registration.status.replaceAll('_', ' ')}
                   </Badge>
                   {registration.status === 'pending_approval' ? (
                     <>
@@ -306,6 +283,7 @@ export function GuestList({
                       className="h-7 w-7"
                       onClick={() => handleRemove(registration.id)}
                       disabled={isPending}
+                      title="Remove"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
