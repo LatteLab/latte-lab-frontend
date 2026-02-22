@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar, MapPin, Users, Lock, ShieldCheck } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { isGradient, parseGradient, gradientConfigToCSS } from '@/lib/gradients';
+import { CoverImageLightbox } from '@/components/user/cover-image-lightbox';
 
 function formatDate(date: Date) {
   return new Date(date).toLocaleDateString('en-US', {
@@ -65,18 +66,21 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           <div className="grid gap-8 md:grid-cols-[1fr_1.2fr]">
             {/* Left: Cover image */}
             <div>
-              <div className="aspect-square overflow-hidden rounded-2xl bg-muted">
+              <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
                 {event.coverImage && isGradient(event.coverImage) ? (
                   <div
                     className="h-full w-full"
                     style={{ background: gradientConfigToCSS(parseGradient(event.coverImage)!) }}
                   />
                 ) : event.coverImage ? (
-                  <img
-                    src={event.coverImage}
-                    alt={event.name}
-                    className="h-full w-full object-cover"
-                  />
+                  <>
+                    <img
+                      src={event.coverImage}
+                      alt={event.name}
+                      className="h-full w-full object-cover"
+                    />
+                    <CoverImageLightbox src={event.coverImage} alt={event.name} />
+                  </>
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
                     <Calendar className="h-20 w-20 text-primary/30" />
