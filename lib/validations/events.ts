@@ -8,21 +8,13 @@ export const createEventSchema = z.object({
   endDate: z.coerce.date().optional(),
   location: z.string().optional(),
   capacity: z.coerce.number().int().min(1, 'Capacity must be at least 1'),
-  type: z.enum(['waitlist', 'lottery', 'invite_only']),
-  lotteryDeadline: z.coerce.date().optional(),
-  status: z.enum(['draft', 'open']).default('draft'),
+  visibility: z.enum(['private', 'public']).default('private'),
+  waitlistEnabled: z.coerce.boolean().default(false),
   requireApproval: z.coerce.boolean().default(false),
-}).refine(
-  (data) => {
-    if (data.type === 'lottery' && !data.lotteryDeadline) {
-      return false;
-    }
-    return true;
-  },
-  { message: 'Lottery deadline is required for lottery events', path: ['lotteryDeadline'] }
-);
+});
 
-export const updateEventSchema = createEventSchema.partial();
+// Update schema: requireApproval is NOT included (locked at creation)
+export const updateEventSchema = createEventSchema.omit({ requireApproval: true }).partial();
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;

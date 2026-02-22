@@ -21,8 +21,6 @@ function getStatusBadge(status: string | null) {
       return { label: 'Going', className: 'bg-green-500/15 text-green-700 border-green-500/25 dark:text-green-400' };
     case 'waitlisted':
       return { label: 'Waitlist', className: 'bg-amber-500/15 text-amber-700 border-amber-500/25 dark:text-amber-400' };
-    case 'lottery_entered':
-      return { label: 'Lottery Entered', className: 'bg-purple-500/15 text-purple-700 border-purple-500/25 dark:text-purple-400' };
     case 'pending_approval':
       return { label: 'Pending Approval', className: 'bg-amber-500/15 text-amber-600 border-amber-500/25 dark:text-amber-400' };
     case 'rejected':

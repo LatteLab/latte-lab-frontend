@@ -1,6 +1,6 @@
 import { db } from './index';
 import { events, eventRegistrations, eventAccess, lotteryHistory, users } from './schema';
-import { eq, and, desc, gte, lt, ne, count, inArray } from 'drizzle-orm';
+import { eq, and, desc, gte, lt, count, inArray } from 'drizzle-orm';
 import type { Event, NewEvent, EventRegistration } from './schema';
 
 // ============================================================================
@@ -23,8 +23,7 @@ export async function getEvents(filter?: 'upcoming' | 'past') {
 export async function getPublishedEvents(filter?: 'upcoming' | 'past') {
   const now = new Date();
   const baseConditions = [
-    ne(events.status, 'draft'),
-    ne(events.type, 'invite_only'),
+    eq(events.visibility, 'public'),
   ];
 
   if (filter === 'upcoming') {
@@ -59,7 +58,7 @@ export async function updateEvent(id: string, data: Partial<NewEvent>): Promise<
 }
 
 // ============================================================================
-// Event Access Queries (for invite-only events)
+// Event Access Queries (for private events)
 // ============================================================================
 
 export async function createEventAccess(userId: string, eventId: string) {
@@ -83,10 +82,7 @@ export async function hasEventAccess(userId: string, eventId: string): Promise<b
 
 export async function getEventByInviteCode(code: string): Promise<Event | null> {
   const [event] = await db.select().from(events)
-    .where(and(
-      eq(events.inviteCode, code),
-      eq(events.type, 'invite_only')
-    ))
+    .where(eq(events.inviteCode, code))
     .limit(1);
   return event || null;
 }
@@ -221,7 +217,6 @@ export async function getUserEvents(userId: string, filter?: 'upcoming' | 'past'
 
   const conditions = [
     eq(eventRegistrations.userId, userId),
-    ne(events.status, 'draft'),
   ];
 
   if (filter === 'upcoming') {
@@ -256,11 +251,10 @@ export async function getUserEvents(userId: string, filter?: 'upcoming' | 'past'
     .where(and(...conditions))
     .orderBy(filter === 'past' ? desc(events.date) : events.date);
 
-  // Accessed invite-only events (where user has access but no registration)
+  // Accessed private events (where user has access but no registration)
   const accessConditions = [
     eq(eventAccess.userId, userId),
-    eq(events.type, 'invite_only'),
-    ne(events.status, 'draft'),
+    eq(events.visibility, 'private'),
   ];
 
   if (filter === 'upcoming') {

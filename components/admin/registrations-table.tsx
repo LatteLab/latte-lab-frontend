@@ -26,7 +26,6 @@ interface Registration {
 const statusColors: Record<string, string> = {
   registered: 'bg-green-500/10 text-green-500 border-green-500/20',
   waitlisted: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-  lottery_entered: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
   selected: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
   rejected: 'bg-red-500/10 text-red-500 border-red-500/20',
   checked_in: 'bg-green-500/10 text-green-700 border-green-500/20',
@@ -38,10 +37,12 @@ export function RegistrationsTable({
   registrations,
   eventId,
   showPriority,
+  showApprovalActions,
 }: {
   registrations: Registration[];
   eventId: string;
   showPriority?: boolean;
+  showApprovalActions?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
 
@@ -114,7 +115,7 @@ export function RegistrationsTable({
             <Badge variant="outline" className={statusColors[registration.status] || ''}>
               {registration.status.replace('_', ' ')}
             </Badge>
-            {registration.status === 'pending_approval' ? (
+            {showApprovalActions && registration.status === 'pending_approval' ? (
               <>
                 <Button
                   variant="ghost"

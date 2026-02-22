@@ -39,7 +39,7 @@ export function LotteryDraw({ eventId, entrantCount }: { eventId: string; entran
         className="gap-2"
       >
         <Sparkles className="h-4 w-4" />
-        Run Lottery ({entrantCount} entrants)
+        Run Lottery ({entrantCount} pending)
       </Button>
 
       {/* Confirmation dialog */}
@@ -48,7 +48,7 @@ export function LotteryDraw({ eventId, entrantCount }: { eventId: string; entran
           <DialogHeader>
             <DialogTitle>Run Lottery Draw</DialogTitle>
             <DialogDescription>
-              This will select winners from {entrantCount} entrants using weighted random selection.
+              This will select winners from {entrantCount} pending requests using weighted random selection.
               Priority scores: base 1.0, +0.5 per past loss, -1.5 per past no-show.
               This action cannot be undone.
             </DialogDescription>

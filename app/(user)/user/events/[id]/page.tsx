@@ -3,7 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import { getEventById, getUserRegistration, getEventRegistrations, getRegistrationCount, hasEventAccess } from '@/lib/db/event-queries';
 import { EventRegistrationButton } from '@/components/user/event-registration-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Calendar, MapPin, Users, Clock } from 'lucide-react';
+import { Calendar, MapPin, Users } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { isGradient, parseGradient, gradientConfigToCSS } from '@/lib/gradients';
 
@@ -29,10 +29,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const { id } = await params;
   const event = await getEventById(id);
-  if (!event || event.status === 'draft') notFound();
+  if (!event) notFound();
 
-  // Access check for invite-only events
-  if (event.type === 'invite_only') {
+  // Access check for private events
+  if (event.visibility === 'private') {
     const access = await hasEventAccess(session.user.id, id);
     if (!access) notFound();
   }
@@ -111,16 +111,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                     <Progress value={capacityPercent} className="mt-1 h-2" />
                   </div>
                 </div>
-
-                {event.type === 'lottery' && event.lotteryDeadline && (
-                  <div className="flex items-center gap-3 text-muted-foreground">
-                    <Clock className="h-5 w-5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Lottery Deadline</p>
-                      <p className="text-sm">{formatDate(event.lotteryDeadline)} at {formatTime(event.lotteryDeadline)}</p>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Registration button */}

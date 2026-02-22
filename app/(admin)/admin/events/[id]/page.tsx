@@ -8,6 +8,7 @@ import { EventForm } from '@/components/admin/event-form';
 import { RegistrationsTable } from '@/components/admin/registrations-table';
 import { LotteryDraw } from '@/components/admin/lottery-draw';
 import { InviteLinkCard } from '@/components/admin/invite-link-card';
+import { CloseRegistrationButton } from '@/components/admin/close-registration-button';
 import Link from 'next/link';
 import { ClipboardCheck } from 'lucide-react';
 
@@ -21,7 +22,7 @@ export default async function AdminEventDetailPage({ params }: { params: Promise
   if (!event) notFound();
 
   const registrations = await getEventRegistrations(id);
-  const entrantCount = registrations.filter(r => r.registration.status === 'lottery_entered').length;
+  const pendingCount = registrations.filter(r => r.registration.status === 'pending_approval').length;
 
   return (
     <>
@@ -40,7 +41,7 @@ export default async function AdminEventDetailPage({ params }: { params: Promise
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl px-4 py-6">
-          {event.type === 'invite_only' && event.inviteCode && (
+          {event.visibility === 'private' && event.inviteCode && (
             <InviteLinkCard eventId={id} inviteCode={event.inviteCode} />
           )}
 
@@ -53,15 +54,19 @@ export default async function AdminEventDetailPage({ params }: { params: Promise
             </TabsList>
 
             <TabsContent value="registrations" className="mt-6">
-              {event.type === 'lottery' && event.status === 'open' && (
-                <div className="mb-6">
-                  <LotteryDraw eventId={id} entrantCount={entrantCount} />
+              {event.status === 'open' && (
+                <div className="flex items-center gap-2 mb-6">
+                  {event.requireApproval && (
+                    <LotteryDraw eventId={id} entrantCount={pendingCount} />
+                  )}
+                  <CloseRegistrationButton eventId={id} />
                 </div>
               )}
               <RegistrationsTable
                 registrations={registrations}
                 eventId={id}
-                showPriority={event.type === 'lottery'}
+                showApprovalActions={event.requireApproval}
+                showPriority={event.requireApproval}
               />
             </TabsContent>
 

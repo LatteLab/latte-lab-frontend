@@ -5,10 +5,10 @@ import type { AdapterAccountType } from 'next-auth/adapters';
 // Enums
 // ============================================================================
 
-export const eventTypeEnum = pgEnum('event_type', ['waitlist', 'lottery', 'invite_only']);
-export const eventStatusEnum = pgEnum('event_status', ['draft', 'open', 'closed', 'completed']);
+export const eventVisibilityEnum = pgEnum('event_visibility', ['private', 'public']);
+export const eventStatusEnum = pgEnum('event_status', ['open', 'closed', 'completed']);
 export const registrationStatusEnum = pgEnum('registration_status', [
-  'registered', 'waitlisted', 'lottery_entered', 'selected', 'rejected', 'checked_in', 'no_show', 'pending_approval'
+  'registered', 'waitlisted', 'selected', 'rejected', 'checked_in', 'no_show', 'pending_approval'
 ]);
 export const lotteryOutcomeEnum = pgEnum('lottery_outcome', ['won', 'lost']);
 
@@ -81,17 +81,17 @@ export const events = pgTable('events', {
   endDate: timestamp('end_date', { mode: 'date' }),
   location: text('location'),
   capacity: integer('capacity').notNull(),
-  type: eventTypeEnum('type').notNull(),
-  lotteryDeadline: timestamp('lottery_deadline', { mode: 'date' }),
-  status: eventStatusEnum('status').notNull().default('draft'),
+  visibility: eventVisibilityEnum('visibility').notNull().default('private'),
+  waitlistEnabled: boolean('waitlist_enabled').notNull().default(false),
   requireApproval: boolean('require_approval').notNull().default(false),
+  status: eventStatusEnum('status').notNull().default('open'),
   inviteCode: text('invite_code').unique(),
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-// Event access table - tracks which users have access to invite-only events
+// Event access table - tracks which users have access to private events
 export const eventAccess = pgTable('event_access', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

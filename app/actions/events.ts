@@ -30,9 +30,11 @@ export async function createEventAction(formData: FormData) {
     ...raw,
     capacity: Number(raw.capacity),
     requireApproval: raw.requireApproval === 'true',
+    waitlistEnabled: raw.waitlistEnabled === 'true',
   });
 
-  const inviteCode = parsed.type === 'invite_only'
+  // Auto-generate invite code for private events
+  const inviteCode = parsed.visibility === 'private'
     ? crypto.randomUUID().replace(/-/g, '').slice(0, 12)
     : null;
 
@@ -42,8 +44,8 @@ export async function createEventAction(formData: FormData) {
     description: parsed.description || null,
     location: parsed.location || null,
     endDate: parsed.endDate || null,
-    lotteryDeadline: parsed.lotteryDeadline || null,
     inviteCode,
+    status: 'open',
     createdBy: session.user.id,
   });
 
@@ -60,18 +62,18 @@ export async function updateEventAction(eventId: string, formData: FormData) {
   const parsed = updateEventSchema.parse({
     ...raw,
     capacity: raw.capacity ? Number(raw.capacity) : undefined,
-    requireApproval: raw.requireApproval !== undefined ? raw.requireApproval === 'true' : undefined,
+    waitlistEnabled: raw.waitlistEnabled !== undefined ? raw.waitlistEnabled === 'true' : undefined,
   });
 
-  // Handle invite code when type changes
+  // Handle invite code when visibility changes
   let inviteCode: string | null | undefined;
-  if (parsed.type === 'invite_only') {
+  if (parsed.visibility === 'private') {
     const existing = await getEventById(eventId);
     if (!existing?.inviteCode) {
       inviteCode = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
     }
-  } else if (parsed.type) {
-    inviteCode = null; // Clear invite code when switching away from invite_only
+  } else if (parsed.visibility === 'public') {
+    // Keep invite code even when going public (existing links still work)
   }
 
   const event = await dbUpdateEvent(eventId, {
@@ -80,7 +82,6 @@ export async function updateEventAction(eventId: string, formData: FormData) {
     description: parsed.description || null,
     location: parsed.location || null,
     endDate: parsed.endDate || null,
-    lotteryDeadline: parsed.lotteryDeadline || null,
     ...(inviteCode !== undefined && { inviteCode }),
   });
 
@@ -95,12 +96,12 @@ export async function registerForEvent(eventId: string) {
   if (!session?.user) throw new Error('Unauthorized');
 
   const event = await getEventById(eventId);
-  if (!event || event.status === 'draft' || event.status === 'completed') {
+  if (!event || event.status !== 'open') {
     throw new Error('Event not available for registration');
   }
 
-  // For invite_only events, verify user has access
-  if (event.type === 'invite_only') {
+  // For private events, verify user has access
+  if (event.visibility === 'private') {
     const access = await hasEventAccess(session.user.id, eventId);
     if (!access) throw new Error('You do not have access to this event');
   }
@@ -108,7 +109,7 @@ export async function registerForEvent(eventId: string) {
   const existing = await getUserRegistration(session.user.id, eventId);
   if (existing) throw new Error('Already registered');
 
-  // If require approval is on, create pending_approval registration
+  // Require approval — always pending_approval
   if (event.requireApproval) {
     await createRegistration({
       userId: session.user.id,
@@ -120,29 +121,23 @@ export async function registerForEvent(eventId: string) {
     return;
   }
 
-  if (event.type === 'lottery') {
-    if (event.lotteryDeadline && new Date() > event.lotteryDeadline) {
-      throw new Error('Lottery deadline has passed');
-    }
+  // FCFS registration
+  const confirmedCount = await getRegistrationCount(eventId, ['registered', 'checked_in']);
+
+  if (confirmedCount < event.capacity) {
     await createRegistration({
       userId: session.user.id,
       eventId,
-      status: 'lottery_entered',
+      status: 'registered',
+    });
+  } else if (event.waitlistEnabled) {
+    await createRegistration({
+      userId: session.user.id,
+      eventId,
+      status: 'waitlisted',
     });
   } else {
-    // Waitlist or invite_only (FCFS)
-    const confirmedCount = await getRegistrationCount(eventId, ['registered', 'checked_in']);
-    const status = confirmedCount < event.capacity ? 'registered' : 'waitlisted';
-
-    if (event.type === 'invite_only' && confirmedCount >= event.capacity) {
-      throw new Error('Event is full');
-    }
-
-    await createRegistration({
-      userId: session.user.id,
-      eventId,
-      status,
-    });
+    throw new Error('Event is full');
   }
 
   revalidatePath(`/user/events/${eventId}`);
@@ -155,9 +150,9 @@ export async function cancelRegistration(eventId: string) {
 
   await deleteRegistration(session.user.id, eventId);
 
-  // If waitlist event, promote next person
+  // If waitlist enabled, promote next person
   const event = await getEventById(eventId);
-  if (event?.type === 'waitlist') {
+  if (event?.waitlistEnabled && !event.requireApproval) {
     const regs = await getEventRegistrations(eventId);
     const waitlisted = regs.filter(r => r.registration.status === 'waitlisted');
     if (waitlisted.length > 0) {
@@ -177,23 +172,24 @@ export async function runLottery(eventId: string) {
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
   const event = await getEventById(eventId);
-  if (!event || event.type !== 'lottery') throw new Error('Not a lottery event');
+  if (!event || !event.requireApproval) throw new Error('Lottery only available for approval-required events');
 
   const regs = await getEventRegistrations(eventId);
-  const entrants = regs.filter(r => r.registration.status === 'lottery_entered');
+  const entrants = regs.filter(r => r.registration.status === 'pending_approval');
 
-  if (entrants.length === 0) throw new Error('No lottery entrants');
+  if (entrants.length === 0) throw new Error('No pending requests');
 
   // Compute priority scores
   const scored = await Promise.all(
     entrants.map(async (entry) => {
       const score = await computePriorityScore(entry.user.id);
-      return { ...entry, score: Math.max(score, 0.1) }; // Floor at 0.1
+      return { ...entry, score: Math.max(score, 0.1) };
     })
   );
 
   // Weighted random selection
-  const spots = event.capacity;
+  const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
+  const spots = Math.max(0, event.capacity - confirmedCount);
   const selected: typeof scored = [];
   const pool = [...scored];
 
@@ -233,7 +229,7 @@ export async function runLottery(eventId: string) {
   }));
   await createLotteryHistoryEntries(historyEntries);
 
-  // Close lottery
+  // Close registration after lottery
   await dbUpdateEvent(eventId, { status: 'closed' });
 
   revalidatePath(`/admin/events/${eventId}`);
@@ -243,6 +239,21 @@ export async function runLottery(eventId: string) {
     selected: selected.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
     rejected: pool.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
   };
+}
+
+export async function closeRegistration(eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const event = await getEventById(eventId);
+  if (!event || event.status !== 'open') throw new Error('Event is not open');
+
+  await dbUpdateEvent(eventId, { status: 'closed' });
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidatePath('/admin/events');
+  revalidatePath(`/user/events/${eventId}`);
+  revalidatePath('/user/events');
 }
 
 export async function checkinAttendee(registrationId: string, eventId: string) {
@@ -277,7 +288,6 @@ export async function removeRegistration(registrationId: string, eventId: string
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
-  // Get the registration first
   const regs = await getEventRegistrations(eventId);
   const reg = regs.find(r => r.registration.id === registrationId);
   if (!reg) throw new Error('Registration not found');
@@ -305,16 +315,13 @@ export async function approveRegistration(registrationId: string, eventId: strin
 
   await getPendingRegistration(registrationId, eventId);
 
-  // Check capacity before approving (except lottery which has its own mechanism)
-  if (event.type !== 'lottery') {
-    const confirmedCount = await getRegistrationCount(eventId, ['registered', 'checked_in']);
-    if (confirmedCount >= event.capacity) {
-      throw new Error('Event is at capacity');
-    }
+  // Check capacity before approving
+  const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
+  if (confirmedCount >= event.capacity) {
+    throw new Error('Event is at capacity');
   }
 
-  const newStatus = event.type === 'lottery' ? 'lottery_entered' : 'registered';
-  await updateRegistration(registrationId, { status: newStatus });
+  await updateRegistration(registrationId, { status: 'registered' });
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/user/events/${eventId}`);
@@ -336,7 +343,7 @@ export async function accessEventByInviteCode(code: string) {
   if (!session?.user) throw new Error('Unauthorized');
 
   const event = await getEventByInviteCode(code);
-  if (!event || event.status === 'draft') throw new Error('Invalid invite code');
+  if (!event) throw new Error('Invalid invite code');
 
   await createEventAccess(session.user.id, event.id);
   return event.id;
@@ -347,8 +354,8 @@ export async function regenerateInviteCode(eventId: string) {
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
   const event = await getEventById(eventId);
-  if (!event || event.type !== 'invite_only') {
-    throw new Error('Can only regenerate invite codes for invite-only events');
+  if (!event || event.visibility !== 'private') {
+    throw new Error('Can only regenerate invite codes for private events');
   }
 
   const newCode = crypto.randomUUID().replace(/-/g, '').slice(0, 12);

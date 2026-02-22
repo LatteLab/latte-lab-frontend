@@ -5,7 +5,7 @@ import { getEventByInviteCode, createEventAccess } from '@/lib/db/event-queries'
 export default async function InvitePage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const event = await getEventByInviteCode(code);
-  if (!event || event.status === 'draft') notFound();
+  if (!event) notFound();
 
   const session = await auth();
   if (!session?.user) {

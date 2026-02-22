@@ -21,8 +21,6 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
         await registerForEvent(event.id);
         if (event.requireApproval) {
           toast.success('Access requested! Waiting for admin approval.');
-        } else if (event.type === 'lottery') {
-          toast.success('Entered lottery!');
         } else if (spotsRemaining > 0) {
           toast.success("You're registered!");
         } else {
@@ -50,7 +48,6 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
     const statusLabels: Record<string, string> = {
       registered: "You're In",
       waitlisted: "You're on the Waitlist",
-      lottery_entered: "Lottery Entry Submitted",
       selected: "You've Been Selected",
       rejected: 'Not Selected',
       checked_in: 'Checked In',
@@ -58,7 +55,7 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
       pending_approval: 'Pending Approval',
     };
 
-    const canCancel = ['registered', 'waitlisted', 'lottery_entered', 'pending_approval'].includes(registration.status);
+    const canCancel = ['registered', 'waitlisted', 'pending_approval'].includes(registration.status);
 
     return (
       <div className="space-y-2">
@@ -100,7 +97,7 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
     );
   }
 
-  // Require approval — show "Request Access" for all types
+  // Require approval — show "Request Access"
   if (event.requireApproval) {
     return (
       <Button
@@ -114,43 +111,15 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
     );
   }
 
-  // invite_only without approval — FCFS
-  if (event.type === 'invite_only') {
-    if (spotsRemaining <= 0) {
-      return (
-        <Button size="lg" className="w-full rounded-xl text-lg" disabled>
-          Event Full
-        </Button>
-      );
-    }
+  // FCFS — no approval
+  if (spotsRemaining <= 0 && !event.waitlistEnabled) {
     return (
-      <Button
-        size="lg"
-        className="w-full rounded-xl text-lg"
-        disabled={isPending}
-        onClick={handleRegister}
-      >
-        {isPending ? 'Registering...' : 'RSVP'}
+      <Button size="lg" className="w-full rounded-xl text-lg" disabled>
+        Event Full
       </Button>
     );
   }
 
-  // Lottery type
-  if (event.type === 'lottery') {
-    const deadlinePassed = event.lotteryDeadline && new Date() > event.lotteryDeadline;
-    return (
-      <Button
-        size="lg"
-        className="w-full rounded-xl text-lg"
-        disabled={isPending || !!deadlinePassed}
-        onClick={handleRegister}
-      >
-        {deadlinePassed ? 'Lottery Closed' : isPending ? 'Entering...' : 'Enter Lottery'}
-      </Button>
-    );
-  }
-
-  // Waitlist type
   return (
     <Button
       size="lg"

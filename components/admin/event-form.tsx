@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { MapPin, FileText, Users, Ticket, Clock, ToggleLeft, ShieldCheck } from 'lucide-react';
+import { MapPin, FileText, Users, Eye, ListChecks, ShieldCheck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,17 +31,14 @@ export function EventForm({ event }: { event?: Event }) {
   );
   const [location, setLocation] = useState(event?.location || '');
   const [description, setDescription] = useState(event?.description || '');
-  const [eventType, setEventType] = useState<'waitlist' | 'lottery' | 'invite_only'>(
-    event?.type || 'waitlist'
+  const [visibility, setVisibility] = useState<'private' | 'public'>(
+    event?.visibility || 'private'
   );
   const [capacity, setCapacity] = useState<string>(
     event?.capacity ? String(event.capacity) : ''
   );
-  const [lotteryDeadline, setLotteryDeadline] = useState<Date | undefined>(
-    event?.lotteryDeadline ? new Date(event.lotteryDeadline) : undefined
-  );
-  const [status, setStatus] = useState<'draft' | 'open'>(
-    event?.status === 'open' ? 'open' : 'draft'
+  const [waitlistEnabled, setWaitlistEnabled] = useState(
+    event?.waitlistEnabled ?? false
   );
   const [requireApproval, setRequireApproval] = useState(
     event?.requireApproval ?? false
@@ -53,6 +50,8 @@ export function EventForm({ event }: { event?: Event }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
+  const isEditing = !!event;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -62,15 +61,14 @@ export function EventForm({ event }: { event?: Event }) {
     formData.set('description', description);
     formData.set('location', location);
     formData.set('capacity', capacity);
-    formData.set('type', eventType);
-    formData.set('status', status);
-    formData.set('requireApproval', String(requireApproval));
+    formData.set('visibility', visibility);
+    formData.set('waitlistEnabled', String(waitlistEnabled));
+    if (!isEditing) {
+      formData.set('requireApproval', String(requireApproval));
+    }
 
     if (startDate) formData.set('date', startDate.toISOString());
     if (endDate) formData.set('endDate', endDate.toISOString());
-    if (eventType === 'lottery' && lotteryDeadline) {
-      formData.set('lotteryDeadline', lotteryDeadline.toISOString());
-    }
 
     startTransition(async () => {
       try {
@@ -158,20 +156,19 @@ export function EventForm({ event }: { event?: Event }) {
               Event Options
             </h3>
             <div className="rounded-xl border divide-y">
-              {/* Event Type */}
+              {/* Visibility */}
               <div className="flex items-center justify-between px-3 sm:px-4 py-2">
                 <div className="flex items-center gap-2.5">
-                  <Ticket className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-sm">Event Type</span>
+                  <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-sm">Visibility</span>
                 </div>
-                <Select value={eventType} onValueChange={(v) => setEventType(v as 'waitlist' | 'lottery' | 'invite_only')}>
-                  <SelectTrigger className="w-[120px] h-7 text-xs">
+                <Select value={visibility} onValueChange={(v) => setVisibility(v as 'private' | 'public')}>
+                  <SelectTrigger className="w-[110px] h-7 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="waitlist">Waitlist</SelectItem>
-                    <SelectItem value="lottery">Lottery</SelectItem>
-                    <SelectItem value="invite_only">Invite Only</SelectItem>
+                    <SelectItem value="private">Private</SelectItem>
+                    <SelectItem value="public">Public</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -193,48 +190,42 @@ export function EventForm({ event }: { event?: Event }) {
                 />
               </div>
 
-              {/* Lottery Deadline (conditional) */}
-              {eventType === 'lottery' && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between px-3 sm:px-4 py-2 gap-1.5">
+              {/* Waitlist (conditional: shown when capacity is set and approval is off) */}
+              {capacity && !requireApproval && (
+                <div className="flex items-center justify-between px-3 sm:px-4 py-2">
                   <div className="flex items-center gap-2.5">
-                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-sm">Lottery Deadline</span>
+                    <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm">Enable Waitlist</span>
                   </div>
-                  <DateTimePicker
-                    label=""
-                    value={lotteryDeadline}
-                    onChange={setLotteryDeadline}
+                  <Switch
+                    checked={waitlistEnabled}
+                    onCheckedChange={setWaitlistEnabled}
                   />
                 </div>
               )}
-
-              {/* Status */}
-              <div className="flex items-center justify-between px-3 sm:px-4 py-2">
-                <div className="flex items-center gap-2.5">
-                  <ToggleLeft className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-sm">Status</span>
-                </div>
-                <Select value={status} onValueChange={(v) => setStatus(v as 'draft' | 'open')}>
-                  <SelectTrigger className="w-[110px] h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="open">Published</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
 
               {/* Require Approval */}
               <div className="flex items-center justify-between px-3 sm:px-4 py-2">
                 <div className="flex items-center gap-2.5">
                   <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-sm">Require Approval</span>
+                  <div>
+                    <span className="text-sm">Require Approval</span>
+                    <p className="text-[11px] text-muted-foreground">Includes manual selection & lottery-based</p>
+                  </div>
                 </div>
-                <Switch
-                  checked={requireApproval}
-                  onCheckedChange={setRequireApproval}
-                />
+                {isEditing ? (
+                  <span className="text-xs text-muted-foreground">
+                    {requireApproval ? 'On' : 'Off'}
+                  </span>
+                ) : (
+                  <Switch
+                    checked={requireApproval}
+                    onCheckedChange={(checked) => {
+                      setRequireApproval(checked);
+                      if (checked) setWaitlistEnabled(false);
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
