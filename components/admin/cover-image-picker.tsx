@@ -58,6 +58,7 @@ export function CoverImagePicker({ value, onChange }: CoverImagePickerProps) {
   const isImage = value && !isGradient(value);
 
   return (
+    <div className="space-y-1.5">
     <div
       className={cn(
         'relative aspect-[4/3] md:aspect-square rounded-2xl overflow-hidden bg-muted'
@@ -114,6 +115,8 @@ export function CoverImagePicker({ value, onChange }: CoverImagePickerProps) {
         onChange={handleFileChange}
         className="hidden"
       />
+    </div>
+    <p className="text-xs text-muted-foreground">Ideal aspect ratio is 1:1 (square)</p>
     </div>
   );
 }
