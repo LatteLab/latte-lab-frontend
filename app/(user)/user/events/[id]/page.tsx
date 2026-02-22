@@ -3,7 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import { getEventById, getUserRegistration, getEventRegistrations, getRegistrationCount, hasEventAccess } from '@/lib/db/event-queries';
 import { EventRegistrationButton } from '@/components/user/event-registration-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Calendar, MapPin, Users } from 'lucide-react';
+import { Calendar, MapPin, Users, Lock, ShieldCheck } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { isGradient, parseGradient, gradientConfigToCSS } from '@/lib/gradients';
 
@@ -21,6 +21,14 @@ function formatTime(date: Date) {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function formatMonthShort(date: Date) {
+  return new Date(date).toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+}
+
+function formatDay(date: Date) {
+  return new Date(date).getDate();
 }
 
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -79,13 +87,27 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
             {/* Right: Event info */}
             <div className="space-y-6">
+              {event.visibility === 'private' && (
+                <div className="flex items-center gap-1.5 text-sm font-medium text-pink-600">
+                  <Lock className="h-3.5 w-3.5" />
+                  <span>Private Event</span>
+                </div>
+              )}
+
               <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
                 {event.name}
               </h1>
 
               <div className="space-y-3">
                 <div className="flex items-center gap-3 text-muted-foreground">
-                  <Calendar className="h-5 w-5 shrink-0" />
+                  <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg border bg-muted/50">
+                    <span className="text-[10px] font-semibold uppercase leading-none text-muted-foreground">
+                      {formatMonthShort(event.date)}
+                    </span>
+                    <span className="text-lg font-bold leading-tight text-foreground">
+                      {formatDay(event.date)}
+                    </span>
+                  </div>
                   <div>
                     <p className="font-medium text-foreground">{formatDate(event.date)}</p>
                     <p className="text-sm">
@@ -95,12 +117,18 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                   </div>
                 </div>
 
-                {event.location && (
-                  <div className="flex items-center gap-3 text-muted-foreground">
-                    <MapPin className="h-5 w-5 shrink-0" />
-                    <p className="font-medium text-foreground">{event.location}</p>
+                <div className="flex items-center gap-3 text-muted-foreground">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border bg-muted/50">
+                    <MapPin className="h-5 w-5 text-muted-foreground" />
                   </div>
-                )}
+                  <p className="font-medium text-foreground">
+                    {event.location
+                      ? event.location
+                      : event.visibility === 'private'
+                        ? 'Register to See Address'
+                        : 'No location specified'}
+                  </p>
+                </div>
 
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <Users className="h-5 w-5 shrink-0" />
@@ -113,12 +141,43 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 </div>
               </div>
 
-              {/* Registration button */}
-              <EventRegistrationButton
-                event={event}
-                registration={registration}
-                spotsRemaining={spotsRemaining}
-              />
+              {/* Registration container */}
+              <div className="rounded-xl border p-5 space-y-4">
+                <p className="text-sm font-medium text-muted-foreground">Registration</p>
+
+                {event.requireApproval && (
+                  <div className="flex items-start gap-2.5">
+                    <ShieldCheck className="h-5 w-5 shrink-0 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold">Approval Required</p>
+                      <p className="text-xs text-muted-foreground">Your registration is subject to host approval.</p>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-sm text-muted-foreground">
+                  Welcome! To join the event, please register below.
+                </p>
+
+                <div className="flex items-center gap-2.5">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={session.user.image || undefined} />
+                    <AvatarFallback className="text-xs">
+                      {session.user.name?.split(' ').map((n: string) => n[0]).join('') || '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="text-sm">
+                    <span className="font-medium">{session.user.name}</span>{' '}
+                    <span className="text-muted-foreground">{session.user.email}</span>
+                  </div>
+                </div>
+
+                <EventRegistrationButton
+                  event={event}
+                  registration={registration}
+                  spotsRemaining={spotsRemaining}
+                />
+              </div>
 
               {/* Description */}
               {event.description && (

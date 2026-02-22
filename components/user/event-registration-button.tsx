@@ -20,7 +20,7 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
       try {
         await registerForEvent(event.id);
         if (event.requireApproval) {
-          toast.success('Access requested! Waiting for admin approval.');
+          toast.success('Application submitted! Waiting for approval.');
         } else if (spotsRemaining > 0) {
           toast.success("You're registered!");
         } else {
@@ -106,7 +106,7 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
         disabled={isPending}
         onClick={handleRegister}
       >
-        {isPending ? 'Requesting...' : 'Request Access'}
+        {isPending ? 'Applying...' : 'One-Click Apply'}
       </Button>
     );
   }
