@@ -55,6 +55,7 @@ lib/
 │   ├── schema.ts           # Drizzle schema (users, events, registrations, lottery)
 │   ├── queries.ts          # User/admin queries
 │   └── event-queries.ts    # Event, registration, lottery queries
+├── types/                  # Shared TypeScript interfaces (e.g., event.ts)
 ├── supabase/
 │   ├── client.ts           # Browser Supabase client (anon key)
 │   └── storage.ts          # Upload/delete helpers for event covers
@@ -97,3 +98,4 @@ if (!session?.user) throw new Error("Unauthorized");
 ## Gotchas
 
 - Supabase Storage RLS: client uses anon key, so policies must include `anon` role (not just `authenticated`)
+- `redirect()` in server actions throws internally (NEXT_REDIRECT). Never wrap server action calls that use `redirect()` in try/catch — it catches the redirect as an error. If you need a toast + navigation after a mutation, skip `redirect()` in the action and use `router.push()` client-side instead.
