@@ -20,7 +20,7 @@ import { TiptapEditor } from '@/components/admin/tiptap-editor';
 import { DateTimePicker, TimezonePicker } from '@/components/admin/date-time-picker';
 import type { Event } from '@/lib/db/schema';
 
-export function EventForm({ event }: { event?: Event }) {
+export function EventForm({ event, compact }: { event?: Event; compact?: boolean }) {
   const [coverImage, setCoverImage] = useState<string>(event?.coverImage || '');
   const [name, setName] = useState(event?.name || '');
   const [startDate, setStartDate] = useState<Date | undefined>(
@@ -90,9 +90,9 @@ export function EventForm({ event }: { event?: Event }) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="grid gap-6 md:gap-8 md:grid-cols-[minmax(280px,420px)_1fr]">
-        {/* Left: Cover Image */}
-        <CoverImagePicker value={coverImage || null} onChange={setCoverImage} />
+      <div className={compact ? "space-y-6" : "grid gap-6 md:gap-8 md:grid-cols-[minmax(280px,420px)_1fr]"}>
+        {/* Cover Image */}
+        <CoverImagePicker value={coverImage || null} onChange={setCoverImage} compact={compact} />
 
         {/* Right: Form Fields */}
         <div className="space-y-4">

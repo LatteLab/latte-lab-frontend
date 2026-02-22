@@ -15,9 +15,10 @@ import { uploadEventCover } from '@/lib/supabase/storage';
 interface CoverImagePickerProps {
   value: string | null;
   onChange: (value: string) => void;
+  compact?: boolean;
 }
 
-export function CoverImagePicker({ value, onChange }: CoverImagePickerProps) {
+export function CoverImagePicker({ value, onChange, compact }: CoverImagePickerProps) {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
@@ -61,7 +62,8 @@ export function CoverImagePicker({ value, onChange }: CoverImagePickerProps) {
     <div className="space-y-1.5">
     <div
       className={cn(
-        'relative aspect-[4/3] md:aspect-square rounded-2xl overflow-hidden bg-muted'
+        'relative rounded-2xl overflow-hidden bg-muted',
+        compact ? 'aspect-[2/1]' : 'aspect-[4/3] md:aspect-square'
       )}
     >
       {gradientCSS && (

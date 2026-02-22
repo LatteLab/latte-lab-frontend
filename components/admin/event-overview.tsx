@@ -269,12 +269,12 @@ export function EventOverview({
 
       {/* Edit Event Sheet */}
       <Sheet open={editOpen} onOpenChange={setEditOpen}>
-        <SheetContent className="sm:max-w-2xl overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Edit Event</SheetTitle>
           </SheetHeader>
-          <div className="mt-6">
-            <EventForm event={event} />
+          <div className="mt-6 px-4 pb-4">
+            <EventForm event={event} compact />
           </div>
         </SheetContent>
       </Sheet>
