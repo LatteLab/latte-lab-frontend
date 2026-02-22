@@ -204,7 +204,7 @@ export async function computePriorityScore(userId: string): Promise<number> {
     getUserLotteryStats(userId),
     getUserNoShowCount(userId),
   ]);
-  return 1.0 + (stats.losses * 0.5) - (noShowCount * 1.0);
+  return 1.0 + (stats.losses * 0.5) - (noShowCount * 1.5);
 }
 
 export async function createLotteryHistoryEntries(entries: { userId: string; eventId: string; outcome: 'won' | 'lost' }[]) {

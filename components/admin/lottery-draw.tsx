@@ -49,7 +49,7 @@ export function LotteryDraw({ eventId, entrantCount }: { eventId: string; entran
             <DialogTitle>Run Lottery Draw</DialogTitle>
             <DialogDescription>
               This will select winners from {entrantCount} entrants using weighted random selection.
-              Priority scores: base 1.0, +0.5 per past loss, -1.0 per past no-show.
+              Priority scores: base 1.0, +0.5 per past loss, -1.5 per past no-show.
               This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
