@@ -53,6 +53,8 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
       checked_in: 'Checked In',
       no_show: 'Marked as No-Show',
       pending_approval: 'Pending Approval',
+      draft_selected: 'Pending Review',
+      draft_rejected: 'Pending Review',
     };
 
     const canCancel = ['registered', 'waitlisted', 'pending_approval'].includes(registration.status);
@@ -65,7 +67,9 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
           variant={
             registration.status === 'rejected' || registration.status === 'no_show'
               ? 'destructive'
-              : registration.status === 'pending_approval'
+              : registration.status === 'pending_approval' ||
+                  registration.status === 'draft_selected' ||
+                  registration.status === 'draft_rejected'
                 ? 'secondary'
                 : 'default'
           }

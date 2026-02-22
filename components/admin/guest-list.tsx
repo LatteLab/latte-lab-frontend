@@ -14,7 +14,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { LotteryDraw } from '@/components/admin/lottery-draw';
-import { approveRegistration, denyRegistration, removeRegistration } from '@/app/actions/events';
+import { LotteryReview } from '@/components/admin/lottery-review';
+import { UserDetailModal } from '@/components/admin/user-detail-modal';
+import { approveRegistration, denyRegistration, removeRegistration, getUserDetailForModal } from '@/app/actions/events';
 import { toast } from 'sonner';
 import { Search, ClipboardCheck, Trash2, Check, X } from 'lucide-react';
 import Link from 'next/link';
@@ -27,10 +29,10 @@ type SortBy = 'register_time' | 'name' | 'email' | 'status';
 
 const STATUS_FILTER_MAP: Record<StatusFilter, string[]> = {
   all: [],
-  going: ['registered', 'selected', 'checked_in'],
+  going: ['registered', 'selected', 'checked_in', 'draft_selected'],
   pending_approval: ['pending_approval'],
   waitlisted: ['waitlisted'],
-  rejected: ['rejected'],
+  rejected: ['rejected', 'draft_rejected'],
   not_going: ['no_show'],
   checked_in: ['checked_in'],
 };
@@ -58,6 +60,10 @@ export function GuestList({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('register_time');
   const [isPending, startTransition] = useTransition();
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const hasDraft = event.lotteryStatus === 'draft';
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -66,10 +72,10 @@ export function GuestList({
     }
     return {
       all: registrations.length,
-      going: (c['registered'] || 0) + (c['selected'] || 0) + (c['checked_in'] || 0),
+      going: (c['registered'] || 0) + (c['selected'] || 0) + (c['checked_in'] || 0) + (c['draft_selected'] || 0),
       pending_approval: c['pending_approval'] || 0,
       waitlisted: c['waitlisted'] || 0,
-      rejected: c['rejected'] || 0,
+      rejected: (c['rejected'] || 0) + (c['draft_rejected'] || 0),
       not_going: c['no_show'] || 0,
       checked_in: c['checked_in'] || 0,
     };
@@ -78,8 +84,16 @@ export function GuestList({
   const goingCount = counts.going;
   const percent = event.capacity > 0 ? Math.round((goingCount / event.capacity) * 100) : 0;
 
+  // Filter out draft statuses from regular guest list when draft active
+  const nonDraftRegistrations = useMemo(() => {
+    if (!hasDraft) return registrations;
+    return registrations.filter(r =>
+      r.registration.status !== 'draft_selected' && r.registration.status !== 'draft_rejected'
+    );
+  }, [registrations, hasDraft]);
+
   const displayed = useMemo(() => {
-    let list = [...registrations];
+    let list = [...nonDraftRegistrations];
 
     const allowedStatuses = STATUS_FILTER_MAP[statusFilter];
     if (allowedStatuses.length > 0) {
@@ -109,7 +123,7 @@ export function GuestList({
     });
 
     return list;
-  }, [registrations, statusFilter, search, sortBy]);
+  }, [nonDraftRegistrations, statusFilter, search, sortBy]);
 
   const handleApprove = (registrationId: string) => {
     startTransition(async () => {
@@ -144,6 +158,11 @@ export function GuestList({
     });
   };
 
+  const handleRowClick = (userId: string) => {
+    setSelectedUserId(userId);
+    setModalOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* At a Glance */}
@@ -175,10 +194,15 @@ export function GuestList({
             Check In Guests
           </Button>
         </Link>
-        {event.requireApproval && event.status === 'open' && (
+        {event.requireApproval && event.status === 'open' && !hasDraft && (
           <LotteryDraw eventId={event.id} entrantCount={counts.pending_approval} />
         )}
       </div>
+
+      {/* Lottery Review Panel */}
+      {hasDraft && (
+        <LotteryReview eventId={event.id} registrations={registrations} />
+      )}
 
       {/* Guest List */}
       <div className="space-y-3">
@@ -227,8 +251,12 @@ export function GuestList({
           <p className="py-8 text-center text-muted-foreground text-sm">No guests found.</p>
         ) : (
           <div className="space-y-1">
-            {displayed.map(({ registration, user }) => (
-              <div key={registration.id} className="flex items-center justify-between rounded-lg border p-3">
+            {displayed.map(({ registration, user, stats }) => (
+              <div
+                key={registration.id}
+                className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-accent/50 transition-colors"
+                onClick={() => handleRowClick(user.id)}
+              >
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={user.image || undefined} />
@@ -240,8 +268,26 @@ export function GuestList({
                     <p className="text-sm font-medium truncate">{user.name || 'Unknown'}</p>
                     <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                   </div>
+                  {/* Compact stat indicators */}
+                  {stats && (
+                    <div className="flex items-center gap-2 ml-1">
+                      {stats.noShowCount > 0 && (
+                        <Badge variant="outline" className="text-xs bg-red-500/10 text-red-500 border-red-500/20">
+                          {stats.noShowCount} NS
+                        </Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground hidden sm:inline">
+                        {stats.eventsAttended} attended
+                      </span>
+                      {(stats.semesterLotteryWins > 0 || stats.semesterLotteryLosses > 0) && (
+                        <span className="text-xs text-muted-foreground hidden md:inline">
+                          {stats.semesterLotteryWins}W / {stats.semesterLotteryLosses}L
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 ml-2">
+                <div className="flex items-center gap-2 ml-2" onClick={(e) => e.stopPropagation()}>
                   {event.requireApproval && registration.lotteryPriorityScore != null && (
                     <span className="text-xs text-muted-foreground">
                       Score: {registration.lotteryPriorityScore.toFixed(1)}
@@ -294,6 +340,14 @@ export function GuestList({
           </div>
         )}
       </div>
+
+      {/* User Detail Modal */}
+      <UserDetailModal
+        userId={selectedUserId}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        fetchUserDetail={getUserDetailForModal}
+      />
     </div>
   );
 }

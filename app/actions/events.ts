@@ -19,6 +19,7 @@ import {
   getEventByInviteCode,
   createEventAccess,
   hasEventAccess,
+  getCurrentSemesterLabel,
 } from '@/lib/db/event-queries';
 import { createEventSchema, updateEventSchema } from '@/lib/validations/events';
 
@@ -168,19 +169,20 @@ export async function cancelRegistration(eventId: string) {
   revalidatePath(`/admin/events/${eventId}`);
 }
 
-export async function runLottery(eventId: string) {
+export async function runLotteryDraft(eventId: string) {
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
   const event = await getEventById(eventId);
   if (!event || !event.requireApproval) throw new Error('Lottery only available for approval-required events');
+  if (event.lotteryStatus === 'draft') throw new Error('A lottery draft is already in progress');
+  if (event.lotteryStatus === 'finalized') throw new Error('Lottery has already been finalized');
 
   const regs = await getEventRegistrations(eventId);
   const entrants = regs.filter(r => r.registration.status === 'pending_approval');
 
   if (entrants.length === 0) throw new Error('No pending requests');
 
-  // Compute priority scores
   const scored = await Promise.all(
     entrants.map(async (entry) => {
       const score = await computePriorityScore(entry.user.id);
@@ -188,7 +190,6 @@ export async function runLottery(eventId: string) {
     })
   );
 
-  // Weighted random selection
   const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
   const spots = Math.max(0, event.capacity - confirmedCount);
   const selected: typeof scored = [];
@@ -211,27 +212,17 @@ export async function runLottery(eventId: string) {
 
   const selectedIds = new Set(selected.map(s => s.registration.id));
 
-  // Update statuses and snapshot scores
-  const updates = entrants.map(async (entry) => {
-    const isSelected = selectedIds.has(entry.registration.id);
-    const entryScore = scored.find(s => s.registration.id === entry.registration.id)!.score;
-    await updateRegistration(entry.registration.id, {
-      status: isSelected ? 'selected' : 'rejected',
-      lotteryPriorityScore: entryScore,
-    });
-  });
-  await Promise.all(updates);
+  await Promise.all(
+    scored.map(async (entry) => {
+      const isSelected = selectedIds.has(entry.registration.id);
+      await updateRegistration(entry.registration.id, {
+        status: isSelected ? 'draft_selected' : 'draft_rejected',
+        lotteryPriorityScore: entry.score,
+      });
+    })
+  );
 
-  // Write lottery history
-  const historyEntries = entrants.map(entry => ({
-    userId: entry.user.id,
-    eventId,
-    outcome: selectedIds.has(entry.registration.id) ? 'won' as const : 'lost' as const,
-  }));
-  await createLotteryHistoryEntries(historyEntries);
-
-  // Close registration after lottery
-  await dbUpdateEvent(eventId, { status: 'closed' });
+  await dbUpdateEvent(eventId, { lotteryStatus: 'draft' });
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/user/events/${eventId}`);
@@ -240,6 +231,147 @@ export async function runLottery(eventId: string) {
     selected: selected.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
     rejected: pool.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
   };
+}
+
+export async function removeDraftSelected(registrationId: string, eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const event = await getEventById(eventId);
+  if (!event || event.lotteryStatus !== 'draft') throw new Error('No lottery draft in progress');
+
+  const regs = await getEventRegistrations(eventId);
+  const reg = regs.find(r => r.registration.id === registrationId);
+  if (!reg || reg.registration.status !== 'draft_selected') {
+    throw new Error('Registration is not draft selected');
+  }
+
+  await updateRegistration(registrationId, { status: 'draft_rejected' });
+  revalidatePath(`/admin/events/${eventId}`);
+}
+
+export async function rerollLottery(eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const event = await getEventById(eventId);
+  if (!event || event.lotteryStatus !== 'draft') throw new Error('No lottery draft in progress');
+
+  const regs = await getEventRegistrations(eventId);
+  const draftSelected = regs.filter(r => r.registration.status === 'draft_selected');
+  const draftRejected = regs.filter(r => r.registration.status === 'draft_rejected');
+
+  const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
+  const totalSlots = Math.max(0, event.capacity - confirmedCount);
+  const openSlots = totalSlots - draftSelected.length;
+
+  if (openSlots <= 0 || draftRejected.length === 0) {
+    throw new Error('No open slots to fill or no remaining candidates');
+  }
+
+  const scored = await Promise.all(
+    draftRejected.map(async (entry) => {
+      const score = entry.registration.lotteryPriorityScore ?? Math.max(await computePriorityScore(entry.user.id), 0.1);
+      return { ...entry, score };
+    })
+  );
+
+  const newSelected: typeof scored = [];
+  const pool = [...scored];
+
+  for (let i = 0; i < Math.min(openSlots, pool.length); i++) {
+    const totalWeight = pool.reduce((sum, e) => sum + e.score, 0);
+    let random = Math.random() * totalWeight;
+    let pickedIndex = 0;
+    for (let j = 0; j < pool.length; j++) {
+      random -= pool[j].score;
+      if (random <= 0) {
+        pickedIndex = j;
+        break;
+      }
+    }
+    newSelected.push(pool[pickedIndex]);
+    pool.splice(pickedIndex, 1);
+  }
+
+  await Promise.all(
+    newSelected.map(async (entry) =>
+      updateRegistration(entry.registration.id, { status: 'draft_selected' })
+    )
+  );
+
+  revalidatePath(`/admin/events/${eventId}`);
+
+  return {
+    newlySelected: newSelected.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
+    remainingRejected: pool.length,
+  };
+}
+
+export async function finalizeLottery(eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const event = await getEventById(eventId);
+  if (!event || event.lotteryStatus !== 'draft') throw new Error('No lottery draft in progress');
+
+  const regs = await getEventRegistrations(eventId);
+  const draftSelected = regs.filter(r => r.registration.status === 'draft_selected');
+  const draftRejected = regs.filter(r => r.registration.status === 'draft_rejected');
+
+  await Promise.all([
+    ...draftSelected.map(r => updateRegistration(r.registration.id, { status: 'selected' })),
+    ...draftRejected.map(r => updateRegistration(r.registration.id, { status: 'rejected' })),
+  ]);
+
+  const semesterLabel = await getCurrentSemesterLabel();
+  const historyEntries = [
+    ...draftSelected.map(r => ({
+      userId: r.user.id,
+      eventId,
+      outcome: 'won' as const,
+      semester: semesterLabel,
+    })),
+    ...draftRejected.map(r => ({
+      userId: r.user.id,
+      eventId,
+      outcome: 'lost' as const,
+      semester: semesterLabel,
+    })),
+  ];
+  await createLotteryHistoryEntries(historyEntries);
+
+  await dbUpdateEvent(eventId, { lotteryStatus: 'finalized', status: 'closed' });
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidatePath(`/user/events/${eventId}`);
+}
+
+export async function discardLotteryDraft(eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const event = await getEventById(eventId);
+  if (!event || event.lotteryStatus !== 'draft') throw new Error('No lottery draft in progress');
+
+  const regs = await getEventRegistrations(eventId);
+  const draftEntrants = regs.filter(r =>
+    r.registration.status === 'draft_selected' || r.registration.status === 'draft_rejected'
+  );
+
+  await Promise.all(
+    draftEntrants.map(r =>
+      updateRegistration(r.registration.id, {
+        status: 'pending_approval',
+        lotteryPriorityScore: null,
+      })
+    )
+  );
+
+  await dbUpdateEvent(eventId, { lotteryStatus: null });
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidatePath(`/user/events/${eventId}`);
 }
 
 export async function closeRegistration(eventId: string) {
@@ -377,4 +509,47 @@ export async function deleteEventAction(eventId: string) {
 
   revalidatePath('/admin/events');
   revalidatePath('/user/events');
+}
+
+export async function getUserDetailForModal(userId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const { getUserById } = await import('@/lib/db/queries');
+  const { getUserEventHistory, getUserLotteryStats, getUserNoShowCount, getCurrentSemesterLabel } = await import('@/lib/db/event-queries');
+
+  const user = await getUserById(userId);
+  if (!user) return null;
+
+  const semesterLabel = await getCurrentSemesterLabel();
+  const [eventHistory, lotteryStats, noShowCount] = await Promise.all([
+    getUserEventHistory(userId),
+    getUserLotteryStats(userId, semesterLabel),
+    getUserNoShowCount(userId),
+  ]);
+
+  const checkedInCount = eventHistory.filter(h => h.registration.status === 'checked_in').length;
+
+  return {
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+      major: user.major,
+      classYear: user.classYear,
+      bio: user.bio,
+    },
+    stats: {
+      noShowCount,
+      eventsAttended: checkedInCount,
+      semesterLotteryWins: lotteryStats.wins,
+      semesterLotteryLosses: lotteryStats.losses,
+    },
+    eventHistory: eventHistory.map(h => ({
+      eventName: h.event.name,
+      eventDate: h.event.date,
+      status: h.registration.status,
+    })),
+  };
 }

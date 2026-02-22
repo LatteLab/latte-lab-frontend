@@ -1,3 +1,12 @@
+export interface RegistrationStats {
+  noShowCount: number;
+  eventsAttended: number;
+  lastEventName: string | null;
+  lastEventDate: Date | null;
+  semesterLotteryWins: number;
+  semesterLotteryLosses: number;
+}
+
 export interface Registration {
   registration: {
     id: string;
@@ -11,6 +20,7 @@ export interface Registration {
     email: string | null;
     image: string | null;
   };
+  stats?: RegistrationStats;
 }
 
 export const statusColors: Record<string, string> = {
@@ -21,4 +31,6 @@ export const statusColors: Record<string, string> = {
   checked_in: 'bg-green-500/10 text-green-700 border-green-500/20',
   no_show: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
   pending_approval: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+  draft_selected: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+  draft_rejected: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
 };

@@ -8,9 +8,10 @@ import type { AdapterAccountType } from 'next-auth/adapters';
 export const eventVisibilityEnum = pgEnum('event_visibility', ['private', 'public']);
 export const eventStatusEnum = pgEnum('event_status', ['open', 'closed', 'completed']);
 export const registrationStatusEnum = pgEnum('registration_status', [
-  'registered', 'waitlisted', 'selected', 'rejected', 'checked_in', 'no_show', 'pending_approval'
+  'registered', 'waitlisted', 'selected', 'rejected', 'checked_in', 'no_show', 'pending_approval', 'draft_selected', 'draft_rejected'
 ]);
 export const lotteryOutcomeEnum = pgEnum('lottery_outcome', ['won', 'lost']);
+export const lotteryStatusEnum = pgEnum('lottery_status', ['draft', 'finalized']);
 
 // ============================================================================
 // NextAuth Required Tables
@@ -85,6 +86,7 @@ export const events = pgTable('events', {
   waitlistEnabled: boolean('waitlist_enabled').notNull().default(false),
   requireApproval: boolean('require_approval').notNull().default(false),
   status: eventStatusEnum('status').notNull().default('open'),
+  lotteryStatus: lotteryStatusEnum('lottery_status'),
   inviteCode: text('invite_code').unique(),
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -120,6 +122,15 @@ export const lotteryHistory = pgTable('lottery_history', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   outcome: lotteryOutcomeEnum('outcome').notNull(),
+  semester: text('semester'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Semesters table - tracks academic semesters for lottery scoping
+export const semesters = pgTable('semesters', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  label: text('label').notNull().unique(),
+  isCurrent: boolean('is_current').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -141,3 +152,5 @@ export type NewEventRegistration = typeof eventRegistrations.$inferInsert;
 export type EventAccess = typeof eventAccess.$inferSelect;
 export type NewEventAccess = typeof eventAccess.$inferInsert;
 export type LotteryHistory = typeof lotteryHistory.$inferSelect;
+export type Semester = typeof semesters.$inferSelect;
+export type NewSemester = typeof semesters.$inferInsert;

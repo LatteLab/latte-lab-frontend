@@ -2,7 +2,9 @@ import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { AdminWhitelistManager } from '@/components/admin/whitelist-manager';
+import { SemesterManager } from '@/components/admin/semester-manager';
 import { getAdminWhitelist } from '@/lib/db';
+import { getSemesterData } from '@/app/actions/admin';
 import { PageHeader } from '@/components/ui/page-header';
 
 export default async function SettingsPage() {
@@ -16,13 +18,29 @@ export default async function SettingsPage() {
     redirect('/user');
   }
 
-  const whitelist = await getAdminWhitelist();
+  const [whitelist, semesterData] = await Promise.all([
+    getAdminWhitelist(),
+    getSemesterData(),
+  ]);
 
   return (
     <>
       <PageHeader title="Admin Settings" showSidebarTrigger />
 
       <div className="flex flex-1 flex-col gap-4 p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Semester</CardTitle>
+            <CardDescription>
+              Controls which semester is used for lottery scoring. Auto-detected from MIT academic calendar
+              unless manually overridden.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SemesterManager data={semesterData} />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Admin Whitelist</CardTitle>

@@ -1,5 +1,5 @@
 import { db } from './index';
-import { events, eventRegistrations, eventAccess, lotteryHistory, users } from './schema';
+import { events, eventRegistrations, eventAccess, lotteryHistory, users, semesters } from './schema';
 import { eq, and, desc, gte, lt, count, inArray } from 'drizzle-orm';
 import type { Event, NewEvent, EventRegistration } from './schema';
 
@@ -120,6 +120,94 @@ export async function getEventRegistrations(eventId: string) {
     .orderBy(eventRegistrations.createdAt);
 }
 
+export async function getEventRegistrationsWithStats(eventId: string) {
+  const registrations = await getEventRegistrations(eventId);
+  if (registrations.length === 0) return [];
+
+  const semesterLabel = await getCurrentSemesterLabel();
+  const userIds = registrations.map(r => r.user.id);
+
+  // Batch: no-show counts
+  const noShowRows = await db.select({
+    userId: eventRegistrations.userId,
+    count: count(),
+  })
+    .from(eventRegistrations)
+    .where(and(
+      inArray(eventRegistrations.userId, userIds),
+      eq(eventRegistrations.status, 'no_show')
+    ))
+    .groupBy(eventRegistrations.userId);
+  const noShowMap = new Map(noShowRows.map(r => [r.userId, r.count]));
+
+  // Batch: checked-in counts
+  const attendedRows = await db.select({
+    userId: eventRegistrations.userId,
+    count: count(),
+  })
+    .from(eventRegistrations)
+    .where(and(
+      inArray(eventRegistrations.userId, userIds),
+      eq(eventRegistrations.status, 'checked_in')
+    ))
+    .groupBy(eventRegistrations.userId);
+  const attendedMap = new Map(attendedRows.map(r => [r.userId, r.count]));
+
+  // Batch: last event attended
+  const lastEventRows = await db.select({
+    userId: eventRegistrations.userId,
+    eventName: events.name,
+    eventDate: events.date,
+  })
+    .from(eventRegistrations)
+    .innerJoin(events, eq(eventRegistrations.eventId, events.id))
+    .where(and(
+      inArray(eventRegistrations.userId, userIds),
+      eq(eventRegistrations.status, 'checked_in')
+    ))
+    .orderBy(desc(events.date));
+
+  const lastEventMap = new Map<string, { name: string; date: Date }>();
+  for (const row of lastEventRows) {
+    if (!lastEventMap.has(row.userId)) {
+      lastEventMap.set(row.userId, { name: row.eventName, date: row.eventDate });
+    }
+  }
+
+  // Batch: semester lottery stats
+  const lotteryRows = await db.select({
+    userId: lotteryHistory.userId,
+    outcome: lotteryHistory.outcome,
+    count: count(),
+  })
+    .from(lotteryHistory)
+    .where(and(
+      inArray(lotteryHistory.userId, userIds),
+      eq(lotteryHistory.semester, semesterLabel)
+    ))
+    .groupBy(lotteryHistory.userId, lotteryHistory.outcome);
+
+  const lotteryMap = new Map<string, { wins: number; losses: number }>();
+  for (const row of lotteryRows) {
+    const existing = lotteryMap.get(row.userId) || { wins: 0, losses: 0 };
+    if (row.outcome === 'won') existing.wins = row.count;
+    if (row.outcome === 'lost') existing.losses = row.count;
+    lotteryMap.set(row.userId, existing);
+  }
+
+  return registrations.map(r => ({
+    ...r,
+    stats: {
+      noShowCount: noShowMap.get(r.user.id) ?? 0,
+      eventsAttended: attendedMap.get(r.user.id) ?? 0,
+      lastEventName: lastEventMap.get(r.user.id)?.name ?? null,
+      lastEventDate: lastEventMap.get(r.user.id)?.date ?? null,
+      semesterLotteryWins: lotteryMap.get(r.user.id)?.wins ?? 0,
+      semesterLotteryLosses: lotteryMap.get(r.user.id)?.losses ?? 0,
+    },
+  }));
+}
+
 export async function getRegistrationCount(eventId: string, statuses?: string[]) {
   const conditions = [eq(eventRegistrations.eventId, eventId)];
   if (statuses && statuses.length > 0) {
@@ -168,6 +256,57 @@ export async function deleteRegistration(userId: string, eventId: string) {
 }
 
 // ============================================================================
+// Semester Queries
+// ============================================================================
+
+export function detectSemesterLabel(date: Date = new Date()): string {
+  const month = date.getMonth();
+  const year = date.getFullYear();
+  if (month === 0) return `IAP ${year}`;
+  if (month >= 1 && month <= 4) return `Spring ${year}`;
+  if (month >= 5 && month <= 7) return `Summer ${year}`;
+  return `Fall ${year}`;
+}
+
+export async function getCurrentSemesterLabel(): Promise<string> {
+  const [override] = await db.select()
+    .from(semesters)
+    .where(eq(semesters.isCurrent, true))
+    .limit(1);
+  if (override) return override.label;
+  return detectSemesterLabel();
+}
+
+export async function getSemesters() {
+  return db.select().from(semesters).orderBy(desc(semesters.createdAt));
+}
+
+export async function setSemesterOverride(label: string) {
+  await db.update(semesters)
+    .set({ isCurrent: false })
+    .where(eq(semesters.isCurrent, true));
+
+  const [existing] = await db.select()
+    .from(semesters)
+    .where(eq(semesters.label, label))
+    .limit(1);
+
+  if (existing) {
+    await db.update(semesters)
+      .set({ isCurrent: true })
+      .where(eq(semesters.id, existing.id));
+  } else {
+    await db.insert(semesters).values({ label, isCurrent: true });
+  }
+}
+
+export async function clearSemesterOverride() {
+  await db.update(semesters)
+    .set({ isCurrent: false })
+    .where(eq(semesters.isCurrent, true));
+}
+
+// ============================================================================
 // Lottery Queries
 // ============================================================================
 
@@ -187,13 +326,18 @@ export async function getUserNoShowCount(userId: string): Promise<number> {
   return result?.count ?? 0;
 }
 
-export async function getUserLotteryStats(userId: string) {
+export async function getUserLotteryStats(userId: string, semester?: string | null) {
+  const conditions = [eq(lotteryHistory.userId, userId)];
+  if (semester) {
+    conditions.push(eq(lotteryHistory.semester, semester));
+  }
+
   const history = await db.select({
     outcome: lotteryHistory.outcome,
     count: count(),
   })
     .from(lotteryHistory)
-    .where(eq(lotteryHistory.userId, userId))
+    .where(and(...conditions))
     .groupBy(lotteryHistory.outcome);
 
   const wins = history.find(h => h.outcome === 'won')?.count ?? 0;
@@ -202,14 +346,17 @@ export async function getUserLotteryStats(userId: string) {
 }
 
 export async function computePriorityScore(userId: string): Promise<number> {
+  const semesterLabel = await getCurrentSemesterLabel();
   const [stats, noShowCount] = await Promise.all([
-    getUserLotteryStats(userId),
+    getUserLotteryStats(userId, semesterLabel),
     getUserNoShowCount(userId),
   ]);
-  return 1.0 + (stats.losses * 0.5) - (noShowCount * 1.5);
+  return 1.0 + (stats.losses * 0.5) - (stats.wins * 0.75) - (noShowCount * 1.5);
 }
 
-export async function createLotteryHistoryEntries(entries: { userId: string; eventId: string; outcome: 'won' | 'lost' }[]) {
+export async function createLotteryHistoryEntries(
+  entries: { userId: string; eventId: string; outcome: 'won' | 'lost'; semester?: string | null }[]
+) {
   if (entries.length === 0) return;
   await db.insert(lotteryHistory).values(entries);
 }
