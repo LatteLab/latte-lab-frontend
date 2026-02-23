@@ -12,6 +12,9 @@ export const registrationStatusEnum = pgEnum('registration_status', [
 ]);
 export const lotteryOutcomeEnum = pgEnum('lottery_outcome', ['won', 'lost']);
 export const lotteryStatusEnum = pgEnum('lottery_status', ['draft', 'finalized']);
+export const emailBlastStatusEnum = pgEnum('email_blast_status', ['draft', 'sending', 'sent', 'failed']);
+export const emailAudienceTypeEnum = pgEnum('email_audience_type', ['all', 'event', 'semester_status', 'manual']);
+export const emailRecipientStatusEnum = pgEnum('email_recipient_status', ['queued', 'sent', 'delivered', 'bounced', 'failed']);
 
 // ============================================================================
 // NextAuth Required Tables
@@ -134,6 +137,34 @@ export const semesters = pgTable('semesters', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Email blasts table
+export const emailBlasts = pgTable('email_blasts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  subject: text('subject').notNull(),
+  body: text('body').notNull(),
+  bodyTemplate: text('body_template'),
+  audienceType: emailAudienceTypeEnum('audience_type').notNull(),
+  audienceFilters: text('audience_filters').notNull(), // JSON stringified
+  status: emailBlastStatusEnum('status').notNull().default('draft'),
+  sentBy: text('sent_by').notNull().references(() => users.id),
+  sentAt: timestamp('sent_at', { mode: 'date' }),
+  totalRecipients: integer('total_recipients').default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Email recipients table — per-recipient tracking for delivery status
+export const emailRecipients = pgTable('email_recipients', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  blastId: uuid('blast_id').notNull().references(() => emailBlasts.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  resendEmailId: text('resend_email_id'),
+  status: emailRecipientStatusEnum('status').notNull().default('queued'),
+  statusUpdatedAt: timestamp('status_updated_at', { mode: 'date' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // ============================================================================
 // Type Exports
 // ============================================================================
@@ -154,3 +185,7 @@ export type NewEventAccess = typeof eventAccess.$inferInsert;
 export type LotteryHistory = typeof lotteryHistory.$inferSelect;
 export type Semester = typeof semesters.$inferSelect;
 export type NewSemester = typeof semesters.$inferInsert;
+export type EmailBlast = typeof emailBlasts.$inferSelect;
+export type NewEmailBlast = typeof emailBlasts.$inferInsert;
+export type EmailRecipient = typeof emailRecipients.$inferSelect;
+export type NewEmailRecipient = typeof emailRecipients.$inferInsert;

@@ -19,3 +19,4 @@ export const db = drizzle(client, { schema });
 export * from './queries';
 export * from './schema';
 export * from './event-queries';
+export * from './email-queries';
