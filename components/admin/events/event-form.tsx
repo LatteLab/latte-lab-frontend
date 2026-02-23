@@ -71,8 +71,30 @@ export function EventForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
+    // Client-side validation
+    if (!name.trim()) {
+      toast.error("Event name is required");
+      return;
+    }
+    if (!startDate) {
+      toast.error("Start date is required");
+      return;
+    }
+    if (!timezone) {
+      toast.error("Timezone is required");
+      return;
+    }
+    if (!capacity || Number(capacity) < 1) {
+      toast.error("Capacity must be at least 1");
+      return;
+    }
+    if (endDate && startDate && endDate <= startDate) {
+      toast.error("End date must be after start date");
+      return;
+    }
+
     const formData = new FormData();
-    formData.set("name", name);
+    formData.set("name", name.trim());
     formData.set("coverImage", coverImage);
     formData.set("description", description);
     formData.set("location", location);
