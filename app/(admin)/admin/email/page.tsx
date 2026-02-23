@@ -2,7 +2,7 @@ import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { getEmailBlastsAction } from '@/app/actions/email';
 import { PageHeader } from '@/components/ui/page-header';
-import { EmailBlastList } from '@/components/admin/email-blast-list';
+import { EmailBlastList } from '@/components/admin/email/email-blast-list';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
-import { EmailComposer } from '@/components/admin/email-composer';
+import { EmailComposer } from '@/components/admin/email/email-composer';
 
 export default async function AdminEmailComposePage({
   searchParams,

@@ -1,15 +1,19 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { addAdminEmail, removeAdminEmail } from '@/app/actions/admin';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
-import type { AdminWhitelist } from '@/lib/db';
+import { useState } from "react";
+import { addAdminEmail, removeAdminEmail } from "@/app/actions/admin";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import type { AdminWhitelist } from "@/lib/db";
 
-export function AdminWhitelistManager({ initialWhitelist }: { initialWhitelist: AdminWhitelist[] }) {
+export function AdminWhitelistManager({
+  initialWhitelist,
+}: {
+  initialWhitelist: AdminWhitelist[];
+}) {
   const [whitelist, setWhitelist] = useState(initialWhitelist);
-  const [newEmail, setNewEmail] = useState('');
+  const [newEmail, setNewEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleAddEmail = async () => {
@@ -19,10 +23,10 @@ export function AdminWhitelistManager({ initialWhitelist }: { initialWhitelist: 
     try {
       const data = await addAdminEmail(newEmail);
       setWhitelist([data, ...whitelist]);
-      setNewEmail('');
-      toast.success('Email added to whitelist');
+      setNewEmail("");
+      toast.success("Email added to whitelist");
     } catch (error: any) {
-      toast.error(error.message || 'Failed to add email');
+      toast.error(error.message || "Failed to add email");
     } finally {
       setLoading(false);
     }
@@ -31,10 +35,10 @@ export function AdminWhitelistManager({ initialWhitelist }: { initialWhitelist: 
   const handleRemoveEmail = async (id: string) => {
     try {
       await removeAdminEmail(id);
-      setWhitelist(whitelist.filter(item => item.id !== id));
-      toast.success('Email removed from whitelist');
+      setWhitelist(whitelist.filter((item) => item.id !== id));
+      toast.success("Email removed from whitelist");
     } catch (error: any) {
-      toast.error(error.message || 'Failed to remove email');
+      toast.error(error.message || "Failed to remove email");
     }
   };
 
@@ -49,7 +53,7 @@ export function AdminWhitelistManager({ initialWhitelist }: { initialWhitelist: 
           disabled={loading}
         />
         <Button onClick={handleAddEmail} disabled={loading || !newEmail}>
-          {loading ? 'Adding...' : 'Add'}
+          {loading ? "Adding..." : "Add"}
         </Button>
       </div>
 
@@ -58,7 +62,10 @@ export function AdminWhitelistManager({ initialWhitelist }: { initialWhitelist: 
           <p className="text-muted-foreground">No whitelisted emails</p>
         ) : (
           whitelist.map((item) => (
-            <div key={item.id} className="flex items-center justify-between p-3 border rounded">
+            <div
+              key={item.id}
+              className="flex items-center justify-between p-3 border rounded"
+            >
               <span>{item.email}</span>
               <Button
                 variant="ghost"

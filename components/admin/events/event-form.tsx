@@ -1,41 +1,57 @@
-'use client';
+"use client";
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { MapPin, FileText, Users, Eye, ListChecks, ShieldCheck } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import {
+  MapPin,
+  FileText,
+  Users,
+  Eye,
+  ListChecks,
+  ShieldCheck,
+} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { createEventAction, updateEventAction } from '@/app/actions/events';
-import { CoverImagePicker } from '@/components/admin/cover-image-picker';
-import { TiptapEditor } from '@/components/admin/tiptap-editor';
-import { DateTimePicker, TimezonePicker } from '@/components/admin/date-time-picker';
-import type { Event } from '@/lib/db/schema';
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { createEventAction, updateEventAction } from "@/app/actions/events";
+import { CoverImagePicker } from "@/components/admin/events/cover-image-picker";
+import { TiptapEditor } from "@/components/admin/events/tiptap-editor";
+import {
+  DateTimePicker,
+  TimezonePicker,
+} from "@/components/admin/events/date-time-picker";
+import type { Event } from "@/lib/db/schema";
 
-export function EventForm({ event, compact }: { event?: Event; compact?: boolean }) {
-  const [coverImage, setCoverImage] = useState<string>(event?.coverImage || '');
-  const [name, setName] = useState(event?.name || '');
+export function EventForm({
+  event,
+  compact,
+}: {
+  event?: Event;
+  compact?: boolean;
+}) {
+  const [coverImage, setCoverImage] = useState<string>(event?.coverImage || "");
+  const [name, setName] = useState(event?.name || "");
   const [startDate, setStartDate] = useState<Date | undefined>(
     event?.date ? new Date(event.date) : undefined
   );
   const [endDate, setEndDate] = useState<Date | undefined>(
     event?.endDate ? new Date(event.endDate) : undefined
   );
-  const [location, setLocation] = useState(event?.location || '');
-  const [description, setDescription] = useState(event?.description || '');
-  const [visibility, setVisibility] = useState<'private' | 'public'>(
-    event?.visibility || 'private'
+  const [location, setLocation] = useState(event?.location || "");
+  const [description, setDescription] = useState(event?.description || "");
+  const [visibility, setVisibility] = useState<"private" | "public">(
+    event?.visibility || "private"
   );
   const [capacity, setCapacity] = useState<string>(
-    event?.capacity ? String(event.capacity) : ''
+    event?.capacity ? String(event.capacity) : ""
   );
   const [waitlistEnabled, setWaitlistEnabled] = useState(
     event?.waitlistEnabled ?? false
@@ -56,33 +72,33 @@ export function EventForm({ event, compact }: { event?: Event; compact?: boolean
     e.preventDefault();
 
     const formData = new FormData();
-    formData.set('name', name);
-    formData.set('coverImage', coverImage);
-    formData.set('description', description);
-    formData.set('location', location);
-    formData.set('capacity', capacity);
-    formData.set('visibility', visibility);
-    formData.set('waitlistEnabled', String(waitlistEnabled));
+    formData.set("name", name);
+    formData.set("coverImage", coverImage);
+    formData.set("description", description);
+    formData.set("location", location);
+    formData.set("capacity", capacity);
+    formData.set("visibility", visibility);
+    formData.set("waitlistEnabled", String(waitlistEnabled));
     if (!isEditing) {
-      formData.set('requireApproval', String(requireApproval));
+      formData.set("requireApproval", String(requireApproval));
     }
 
-    if (startDate) formData.set('date', startDate.toISOString());
-    if (endDate) formData.set('endDate', endDate.toISOString());
+    if (startDate) formData.set("date", startDate.toISOString());
+    if (endDate) formData.set("endDate", endDate.toISOString());
 
     startTransition(async () => {
       try {
         if (event) {
           await updateEventAction(event.id, formData);
-          toast.success('Event updated');
+          toast.success("Event updated");
         } else {
           const created = await createEventAction(formData);
-          toast.success('Event created');
+          toast.success("Event created");
           router.push(`/admin/events/${created.id}`);
         }
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : 'Failed to save event'
+          error instanceof Error ? error.message : "Failed to save event"
         );
       }
     });
@@ -90,9 +106,19 @@ export function EventForm({ event, compact }: { event?: Event; compact?: boolean
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className={compact ? "space-y-6" : "grid gap-6 md:gap-8 md:grid-cols-[minmax(280px,420px)_1fr]"}>
+      <div
+        className={
+          compact
+            ? "space-y-6"
+            : "grid gap-6 md:gap-8 md:grid-cols-[minmax(280px,420px)_1fr]"
+        }
+      >
         {/* Cover Image */}
-        <CoverImagePicker value={coverImage || null} onChange={setCoverImage} compact={compact} />
+        <CoverImagePicker
+          value={coverImage || null}
+          onChange={setCoverImage}
+          compact={compact}
+        />
 
         {/* Right: Form Fields */}
         <div className="space-y-4">
@@ -152,9 +178,7 @@ export function EventForm({ event, compact }: { event?: Event; compact?: boolean
 
           {/* Event Options */}
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold">
-              Event Options
-            </h3>
+            <h3 className="text-sm font-semibold">Event Options</h3>
             <div className="rounded-xl border divide-y">
               {/* Visibility */}
               <div className="flex items-center justify-between px-3 sm:px-4 py-2">
@@ -162,7 +186,12 @@ export function EventForm({ event, compact }: { event?: Event; compact?: boolean
                   <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-sm">Visibility</span>
                 </div>
-                <Select value={visibility} onValueChange={(v) => setVisibility(v as 'private' | 'public')}>
+                <Select
+                  value={visibility}
+                  onValueChange={(v) =>
+                    setVisibility(v as "private" | "public")
+                  }
+                >
                   <SelectTrigger className="w-[110px] h-7 text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -210,12 +239,14 @@ export function EventForm({ event, compact }: { event?: Event; compact?: boolean
                   <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
                   <div>
                     <span className="text-sm">Require Approval</span>
-                    <p className="text-[11px] text-muted-foreground">Includes manual selection & lottery-based</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Includes manual selection & lottery-based
+                    </p>
                   </div>
                 </div>
                 {isEditing ? (
                   <span className="text-xs text-muted-foreground">
-                    {requireApproval ? 'On' : 'Off'}
+                    {requireApproval ? "On" : "Off"}
                   </span>
                 ) : (
                   <Switch
@@ -237,11 +268,7 @@ export function EventForm({ event, compact }: { event?: Event; compact?: boolean
             className="w-full rounded-xl"
             disabled={isPending}
           >
-            {isPending
-              ? 'Saving...'
-              : event
-                ? 'Update Event'
-                : 'Create Event'}
+            {isPending ? "Saving..." : event ? "Update Event" : "Create Event"}
           </Button>
         </div>
       </div>

@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import { useState, useTransition } from 'react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet';
-import { EventForm } from '@/components/admin/event-form';
-import { approveRegistration, denyRegistration } from '@/app/actions/events';
-import { parseGradient, gradientConfigToCSS } from '@/lib/gradients';
-import { toast } from 'sonner';
+} from "@/components/ui/sheet";
+import { EventForm } from "@/components/admin/events/event-form";
+import { approveRegistration, denyRegistration } from "@/app/actions/events";
+import { parseGradient, gradientConfigToCSS } from "@/lib/gradients";
+import { toast } from "sonner";
 import {
   ExternalLink,
   Pencil,
@@ -23,11 +23,11 @@ import {
   MapPin,
   Calendar,
   Clock,
-} from 'lucide-react';
-import Link from 'next/link';
-import type { Event } from '@/lib/db/schema';
-import type { Registration } from '@/lib/types/event';
-import { statusColors } from '@/lib/types/event';
+} from "lucide-react";
+import Link from "next/link";
+import type { Event } from "@/lib/db/schema";
+import type { Registration } from "@/lib/types/event";
+import { statusColors } from "@/lib/types/event";
 
 export function EventOverview({
   event,
@@ -42,27 +42,37 @@ export function EventOverview({
   const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const goingStatuses = ['registered', 'selected', 'checked_in'];
-  const goingCount = registrations.filter(r => goingStatuses.includes(r.registration.status)).length;
-  const pendingCount = registrations.filter(r => r.registration.status === 'pending_approval').length;
-  const percent = event.capacity > 0 ? Math.round((goingCount / event.capacity) * 100) : 0;
+  const goingStatuses = ["registered", "selected", "checked_in"];
+  const goingCount = registrations.filter((r) =>
+    goingStatuses.includes(r.registration.status)
+  ).length;
+  const pendingCount = registrations.filter(
+    (r) => r.registration.status === "pending_approval"
+  ).length;
+  const percent =
+    event.capacity > 0 ? Math.round((goingCount / event.capacity) * 100) : 0;
 
   const recentRegistrations = [...registrations]
-    .sort((a, b) => new Date(b.registration.createdAt).getTime() - new Date(a.registration.createdAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.registration.createdAt).getTime() -
+        new Date(a.registration.createdAt).getTime()
+    )
     .slice(0, 5);
 
   const handleCopyLink = async () => {
     try {
       const baseUrl = window.location.origin;
-      const url = event.visibility === 'private' && event.inviteCode
-        ? `${baseUrl}/invite/${event.inviteCode}`
-        : `${baseUrl}/user/events/${event.id}`;
+      const url =
+        event.visibility === "private" && event.inviteCode
+          ? `${baseUrl}/invite/${event.inviteCode}`
+          : `${baseUrl}/user/events/${event.id}`;
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      toast.success('Link copied');
+      toast.success("Link copied");
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error('Failed to copy link');
+      toast.error("Failed to copy link");
     }
   };
 
@@ -70,9 +80,9 @@ export function EventOverview({
     startTransition(async () => {
       try {
         await approveRegistration(registrationId, event.id);
-        toast.success('Registration approved');
+        toast.success("Registration approved");
       } catch {
-        toast.error('Failed to approve registration');
+        toast.error("Failed to approve registration");
       }
     });
   };
@@ -81,9 +91,9 @@ export function EventOverview({
     startTransition(async () => {
       try {
         await denyRegistration(registrationId, event.id);
-        toast.success('Registration denied');
+        toast.success("Registration denied");
       } catch {
-        toast.error('Failed to deny registration');
+        toast.error("Failed to deny registration");
       }
     });
   };
@@ -92,22 +102,26 @@ export function EventOverview({
   const coverStyle = gradient
     ? { background: gradientConfigToCSS(gradient) }
     : event.coverImage
-      ? { backgroundImage: `url(${event.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-      : { background: '#e5e7eb' };
+    ? {
+        backgroundImage: `url(${event.coverImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
+    : { background: "#e5e7eb" };
 
   const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+    return new Date(date).toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   };
 
   const formatTime = (date: Date) => {
-    return new Date(date).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
+    return new Date(date).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
     });
   };
 
@@ -120,8 +134,12 @@ export function EventOverview({
           Edit Event
         </Button>
         <Button variant="outline" size="sm" onClick={handleCopyLink}>
-          {copied ? <Check className="h-3.5 w-3.5 mr-1.5" /> : <Copy className="h-3.5 w-3.5 mr-1.5" />}
-          {copied ? 'Copied' : 'Copy Link'}
+          {copied ? (
+            <Check className="h-3.5 w-3.5 mr-1.5" />
+          ) : (
+            <Copy className="h-3.5 w-3.5 mr-1.5" />
+          )}
+          {copied ? "Copied" : "Copy Link"}
         </Button>
         <Link href={`/user/events/${event.id}`} target="_blank">
           <Button variant="outline" size="sm">
@@ -139,7 +157,9 @@ export function EventOverview({
         />
         <div className="space-y-3 flex-1">
           <div>
-            <h3 className="text-sm font-semibold text-muted-foreground mb-1.5">When &amp; Where</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground mb-1.5">
+              When &amp; Where
+            </h3>
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 text-sm">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
@@ -161,14 +181,22 @@ export function EventOverview({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className={event.status === 'open' ? 'border-green-500/20 text-green-600' : ''}>
+            <Badge
+              variant="outline"
+              className={
+                event.status === "open"
+                  ? "border-green-500/20 text-green-600"
+                  : ""
+              }
+            >
               {event.status}
             </Badge>
-            <Badge variant="outline">
-              {event.visibility}
-            </Badge>
+            <Badge variant="outline">{event.visibility}</Badge>
             {event.requireApproval && (
-              <Badge variant="outline" className="border-amber-500/20 text-amber-600">
+              <Badge
+                variant="outline"
+                className="border-amber-500/20 text-amber-600"
+              >
                 approval required
               </Badge>
             )}
@@ -179,7 +207,9 @@ export function EventOverview({
       {/* Description */}
       {event.description && (
         <div>
-          <h3 className="text-sm font-semibold text-muted-foreground mb-1.5">Description</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground mb-1.5">
+            Description
+          </h3>
           <div
             className="prose prose-sm max-w-none text-sm text-muted-foreground"
             dangerouslySetInnerHTML={{ __html: event.description }}
@@ -193,10 +223,12 @@ export function EventOverview({
         <div className="space-y-2">
           <div className="flex items-baseline justify-between">
             <span className="text-sm">
-              <span className="text-2xl font-bold">{goingCount}</span>{' '}
+              <span className="text-2xl font-bold">{goingCount}</span>{" "}
               <span className="text-muted-foreground">Going</span>
             </span>
-            <span className="text-sm text-muted-foreground">cap {event.capacity}</span>
+            <span className="text-sm text-muted-foreground">
+              cap {event.capacity}
+            </span>
           </div>
           <Progress value={Math.min(percent, 100)} className="h-2" />
           {pendingCount > 0 && (
@@ -210,30 +242,47 @@ export function EventOverview({
         <div className="mt-4">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-medium">Recent Registrations</h4>
-            <Button variant="ghost" size="sm" className="text-xs" onClick={onSwitchToGuests}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs"
+              onClick={onSwitchToGuests}
+            >
               All Guests →
             </Button>
           </div>
           {recentRegistrations.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">No registrations yet.</p>
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              No registrations yet.
+            </p>
           ) : (
             <div className="space-y-1">
               {recentRegistrations.map(({ registration, user }) => (
-                <div key={registration.id} className="flex items-center justify-between rounded-lg border p-2.5">
+                <div
+                  key={registration.id}
+                  className="flex items-center justify-between rounded-lg border p-2.5"
+                >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Avatar className="h-7 w-7">
                       <AvatarImage src={user.image || undefined} />
                       <AvatarFallback className="text-xs">
-                        {user.name?.split(' ').map(n => n[0]).join('') || '?'}
+                        {user.name
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .join("") || "?"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{user.name || 'Unknown'}</p>
-                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                      <p className="text-sm font-medium truncate">
+                        {user.name || "Unknown"}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {user.email}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 ml-2">
-                    {registration.status === 'pending_approval' ? (
+                    {registration.status === "pending_approval" ? (
                       <>
                         <Button
                           variant="outline"
@@ -255,8 +304,13 @@ export function EventOverview({
                         </Button>
                       </>
                     ) : (
-                      <Badge variant="outline" className={`text-xs ${statusColors[registration.status] || ''}`}>
-                        {registration.status.replaceAll('_', ' ')}
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${
+                          statusColors[registration.status] || ""
+                        }`}
+                      >
+                        {registration.status.replaceAll("_", " ")}
                       </Badge>
                     )}
                   </div>

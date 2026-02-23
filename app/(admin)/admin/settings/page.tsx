@@ -1,8 +1,8 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { AdminWhitelistManager } from '@/components/admin/whitelist-manager';
-import { SemesterManager } from '@/components/admin/semester-manager';
+import { AdminWhitelistManager } from '@/components/admin/settings/whitelist-manager';
+import { SemesterManager } from '@/components/admin/settings/semester-manager';
 import { getAdminWhitelist } from '@/lib/db';
 import { getSemesterData } from '@/app/actions/admin';
 import { PageHeader } from '@/components/ui/page-header';

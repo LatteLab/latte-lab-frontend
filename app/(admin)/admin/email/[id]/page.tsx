@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getEmailBlastDetailAction } from '@/app/actions/email';
 import { PageHeader } from '@/components/ui/page-header';
-import { EmailBlastDetail } from '@/components/admin/email-blast-detail';
+import { EmailBlastDetail } from '@/components/admin/email/email-blast-detail';
 
 export default async function AdminEmailDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();

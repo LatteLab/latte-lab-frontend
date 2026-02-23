@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { EventOverview } from '@/components/admin/event-overview';
-import { GuestList } from '@/components/admin/guest-list';
-import { EventSettings } from '@/components/admin/event-settings';
-import type { Event } from '@/lib/db/schema';
-import type { Registration } from '@/lib/types/event';
+import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EventOverview } from "@/components/admin/events/event-overview";
+import { GuestList } from "@/components/admin/events/guest-list";
+import { EventSettings } from "@/components/admin/events/event-settings";
+import type { Event } from "@/lib/db/schema";
+import type { Registration } from "@/lib/types/event";
 
 export function EventManagementTabs({
   event,
@@ -15,7 +15,7 @@ export function EventManagementTabs({
   event: Event;
   registrations: Registration[];
 }) {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState("overview");
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -31,7 +31,7 @@ export function EventManagementTabs({
         <EventOverview
           event={event}
           registrations={registrations}
-          onSwitchToGuests={() => setActiveTab('guests')}
+          onSwitchToGuests={() => setActiveTab("guests")}
         />
       </TabsContent>
 

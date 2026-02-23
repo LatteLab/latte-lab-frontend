@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useTransition } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,14 +9,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { CloseRegistrationButton } from '@/components/admin/close-registration-button';
-import { InviteLinkCard } from '@/components/admin/invite-link-card';
-import { deleteEventAction } from '@/app/actions/events';
-import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
-import { Trash2 } from 'lucide-react';
-import type { Event } from '@/lib/db/schema';
+} from "@/components/ui/dialog";
+import { CloseRegistrationButton } from "@/components/admin/events/close-registration-button";
+import { InviteLinkCard } from "@/components/admin/events/invite-link-card";
+import { deleteEventAction } from "@/app/actions/events";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
+import type { Event } from "@/lib/db/schema";
 
 export function EventSettings({ event }: { event: Event }) {
   const [showDelete, setShowDelete] = useState(false);
@@ -27,10 +27,10 @@ export function EventSettings({ event }: { event: Event }) {
     startTransition(async () => {
       try {
         await deleteEventAction(event.id);
-        toast.success('Event deleted');
-        router.push('/admin/events');
+        toast.success("Event deleted");
+        router.push("/admin/events");
       } catch {
-        toast.error('Failed to delete event');
+        toast.error("Failed to delete event");
       }
     });
   };
@@ -38,14 +38,16 @@ export function EventSettings({ event }: { event: Event }) {
   return (
     <div className="space-y-8">
       {/* Registration */}
-      {event.status === 'open' && (
+      {event.status === "open" && (
         <div>
           <h3 className="text-sm font-semibold mb-3">Registration</h3>
           <div className="rounded-xl border p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Close Registration</p>
-                <p className="text-xs text-muted-foreground">Prevent new registrations for this event.</p>
+                <p className="text-xs text-muted-foreground">
+                  Prevent new registrations for this event.
+                </p>
               </div>
               <CloseRegistrationButton eventId={event.id} />
             </div>
@@ -54,7 +56,7 @@ export function EventSettings({ event }: { event: Event }) {
       )}
 
       {/* Private Event - Invite Code */}
-      {event.visibility === 'private' && event.inviteCode && (
+      {event.visibility === "private" && event.inviteCode && (
         <div>
           <h3 className="text-sm font-semibold mb-3">Private Event</h3>
           <InviteLinkCard eventId={event.id} inviteCode={event.inviteCode} />
@@ -69,10 +71,15 @@ export function EventSettings({ event }: { event: Event }) {
             <div>
               <p className="text-sm font-medium">Delete Event</p>
               <p className="text-xs text-muted-foreground">
-                Permanently delete this event and all registrations. This cannot be undone.
+                Permanently delete this event and all registrations. This cannot
+                be undone.
               </p>
             </div>
-            <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowDelete(true)}
+            >
               <Trash2 className="h-3.5 w-3.5 mr-1.5" />
               Delete
             </Button>
@@ -81,15 +88,25 @@ export function EventSettings({ event }: { event: Event }) {
                 <DialogHeader>
                   <DialogTitle>Delete Event</DialogTitle>
                   <DialogDescription>
-                    Are you sure you want to delete &quot;{event.name}&quot;? This will permanently
-                    remove the event and all associated registrations, access records, and lottery
-                    history. This action cannot be undone.
+                    Are you sure you want to delete &quot;{event.name}&quot;?
+                    This will permanently remove the event and all associated
+                    registrations, access records, and lottery history. This
+                    action cannot be undone.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowDelete(false)}>Cancel</Button>
-                  <Button variant="destructive" onClick={handleDelete} disabled={isPending}>
-                    {isPending ? 'Deleting...' : 'Delete Event'}
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowDelete(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDelete}
+                    disabled={isPending}
+                  >
+                    {isPending ? "Deleting..." : "Delete Event"}
                   </Button>
                 </DialogFooter>
               </DialogContent>

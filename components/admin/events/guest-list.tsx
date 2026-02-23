@@ -1,47 +1,59 @@
-'use client';
+"use client";
 
-import { useState, useMemo, useTransition } from 'react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useState, useMemo, useTransition } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { LotteryDraw } from '@/components/admin/lottery-draw';
-import { LotteryReview } from '@/components/admin/lottery-review';
-import { UserDetailModal } from '@/components/admin/user-detail-modal';
-import { approveRegistration, denyRegistration, removeRegistration, getUserDetailForModal } from '@/app/actions/events';
-import { toast } from 'sonner';
-import { Search, ClipboardCheck, Trash2, Check, X, Mail } from 'lucide-react';
-import Link from 'next/link';
-import type { Event } from '@/lib/db/schema';
-import type { Registration } from '@/lib/types/event';
-import { statusColors } from '@/lib/types/event';
+} from "@/components/ui/select";
+import { LotteryDraw } from "@/components/admin/events/lottery-draw";
+import { LotteryReview } from "@/components/admin/events/lottery-review";
+import { UserDetailModal } from "@/components/admin/users/user-detail-modal";
+import {
+  approveRegistration,
+  denyRegistration,
+  removeRegistration,
+  getUserDetailForModal,
+} from "@/app/actions/events";
+import { toast } from "sonner";
+import { Search, ClipboardCheck, Trash2, Check, X, Mail } from "lucide-react";
+import Link from "next/link";
+import type { Event } from "@/lib/db/schema";
+import type { Registration } from "@/lib/types/event";
+import { statusColors } from "@/lib/types/event";
 
-type StatusFilter = 'all' | 'going' | 'pending_approval' | 'waitlisted' | 'rejected' | 'not_going' | 'checked_in';
-type SortBy = 'register_time' | 'name' | 'email' | 'status';
+type StatusFilter =
+  | "all"
+  | "going"
+  | "pending_approval"
+  | "waitlisted"
+  | "rejected"
+  | "not_going"
+  | "checked_in";
+type SortBy = "register_time" | "name" | "email" | "status";
 
 const STATUS_FILTER_MAP: Record<StatusFilter, string[]> = {
   all: [],
-  going: ['registered', 'selected', 'checked_in', 'draft_selected'],
-  pending_approval: ['pending_approval'],
-  waitlisted: ['waitlisted'],
-  rejected: ['rejected', 'draft_rejected'],
-  not_going: ['no_show'],
-  checked_in: ['checked_in'],
+  going: ["registered", "selected", "checked_in", "draft_selected"],
+  pending_approval: ["pending_approval"],
+  waitlisted: ["waitlisted"],
+  rejected: ["rejected", "draft_rejected"],
+  not_going: ["no_show"],
+  checked_in: ["checked_in"],
 };
 
 function formatRelativeTime(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - new Date(date).getTime();
   const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'just now';
+  if (diffMins < 1) return "just now";
   if (diffMins < 60) return `${diffMins}m ago`;
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
@@ -56,14 +68,14 @@ export function GuestList({
   event: Event;
   registrations: Registration[];
 }) {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [sortBy, setSortBy] = useState<SortBy>('register_time');
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortBy, setSortBy] = useState<SortBy>("register_time");
   const [isPending, startTransition] = useTransition();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  const hasDraft = event.lotteryStatus === 'draft';
+  const hasDraft = event.lotteryStatus === "draft";
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -72,23 +84,30 @@ export function GuestList({
     }
     return {
       all: registrations.length,
-      going: (c['registered'] || 0) + (c['selected'] || 0) + (c['checked_in'] || 0) + (c['draft_selected'] || 0),
-      pending_approval: c['pending_approval'] || 0,
-      waitlisted: c['waitlisted'] || 0,
-      rejected: (c['rejected'] || 0) + (c['draft_rejected'] || 0),
-      not_going: c['no_show'] || 0,
-      checked_in: c['checked_in'] || 0,
+      going:
+        (c["registered"] || 0) +
+        (c["selected"] || 0) +
+        (c["checked_in"] || 0) +
+        (c["draft_selected"] || 0),
+      pending_approval: c["pending_approval"] || 0,
+      waitlisted: c["waitlisted"] || 0,
+      rejected: (c["rejected"] || 0) + (c["draft_rejected"] || 0),
+      not_going: c["no_show"] || 0,
+      checked_in: c["checked_in"] || 0,
     };
   }, [registrations]);
 
   const goingCount = counts.going;
-  const percent = event.capacity > 0 ? Math.round((goingCount / event.capacity) * 100) : 0;
+  const percent =
+    event.capacity > 0 ? Math.round((goingCount / event.capacity) * 100) : 0;
 
   // Filter out draft statuses from regular guest list when draft active
   const nonDraftRegistrations = useMemo(() => {
     if (!hasDraft) return registrations;
-    return registrations.filter(r =>
-      r.registration.status !== 'draft_selected' && r.registration.status !== 'draft_rejected'
+    return registrations.filter(
+      (r) =>
+        r.registration.status !== "draft_selected" &&
+        r.registration.status !== "draft_rejected"
     );
   }, [registrations, hasDraft]);
 
@@ -97,28 +116,34 @@ export function GuestList({
 
     const allowedStatuses = STATUS_FILTER_MAP[statusFilter];
     if (allowedStatuses.length > 0) {
-      list = list.filter(r => allowedStatuses.includes(r.registration.status));
+      list = list.filter((r) =>
+        allowedStatuses.includes(r.registration.status)
+      );
     }
 
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(r =>
-        r.user.name?.toLowerCase().includes(q) ||
-        r.user.email?.toLowerCase().includes(q)
+      list = list.filter(
+        (r) =>
+          r.user.name?.toLowerCase().includes(q) ||
+          r.user.email?.toLowerCase().includes(q)
       );
     }
 
     list.sort((a, b) => {
       switch (sortBy) {
-        case 'name':
-          return (a.user.name || '').localeCompare(b.user.name || '');
-        case 'email':
-          return (a.user.email || '').localeCompare(b.user.email || '');
-        case 'status':
+        case "name":
+          return (a.user.name || "").localeCompare(b.user.name || "");
+        case "email":
+          return (a.user.email || "").localeCompare(b.user.email || "");
+        case "status":
           return a.registration.status.localeCompare(b.registration.status);
-        case 'register_time':
+        case "register_time":
         default:
-          return new Date(b.registration.createdAt).getTime() - new Date(a.registration.createdAt).getTime();
+          return (
+            new Date(b.registration.createdAt).getTime() -
+            new Date(a.registration.createdAt).getTime()
+          );
       }
     });
 
@@ -129,9 +154,9 @@ export function GuestList({
     startTransition(async () => {
       try {
         await approveRegistration(registrationId, event.id);
-        toast.success('Registration approved');
+        toast.success("Registration approved");
       } catch {
-        toast.error('Failed to approve registration');
+        toast.error("Failed to approve registration");
       }
     });
   };
@@ -140,9 +165,9 @@ export function GuestList({
     startTransition(async () => {
       try {
         await denyRegistration(registrationId, event.id);
-        toast.success('Registration denied');
+        toast.success("Registration denied");
       } catch {
-        toast.error('Failed to deny registration');
+        toast.error("Failed to deny registration");
       }
     });
   };
@@ -151,9 +176,9 @@ export function GuestList({
     startTransition(async () => {
       try {
         await removeRegistration(registrationId, event.id);
-        toast.success('Registration removed');
+        toast.success("Registration removed");
       } catch {
-        toast.error('Failed to remove registration');
+        toast.error("Failed to remove registration");
       }
     });
   };
@@ -171,17 +196,21 @@ export function GuestList({
         <div className="flex items-baseline justify-between">
           <div className="flex items-baseline gap-4">
             <span className="text-sm">
-              <span className="text-2xl font-bold">{goingCount}</span>{' '}
+              <span className="text-2xl font-bold">{goingCount}</span>{" "}
               <span className="text-muted-foreground">Going</span>
             </span>
             {counts.pending_approval > 0 && (
               <span className="text-sm">
-                <span className="text-lg font-bold text-amber-600">{counts.pending_approval}</span>{' '}
+                <span className="text-lg font-bold text-amber-600">
+                  {counts.pending_approval}
+                </span>{" "}
                 <span className="text-muted-foreground">Pending</span>
               </span>
             )}
           </div>
-          <span className="text-sm text-muted-foreground">cap {event.capacity}</span>
+          <span className="text-sm text-muted-foreground">
+            cap {event.capacity}
+          </span>
         </div>
         <Progress value={Math.min(percent, 100)} className="h-2" />
       </div>
@@ -195,13 +224,18 @@ export function GuestList({
           </Button>
         </Link>
         <Button variant="outline" size="sm" asChild>
-          <Link href={`/admin/email/compose?audienceType=event&eventId=${event.id}`}>
+          <Link
+            href={`/admin/email/compose?audienceType=event&eventId=${event.id}`}
+          >
             <Mail className="h-3.5 w-3.5 mr-1.5" />
             Email Registrants
           </Link>
         </Button>
-        {event.requireApproval && event.status === 'open' && !hasDraft && (
-          <LotteryDraw eventId={event.id} entrantCount={counts.pending_approval} />
+        {event.requireApproval && event.status === "open" && !hasDraft && (
+          <LotteryDraw
+            eventId={event.id}
+            entrantCount={counts.pending_approval}
+          />
         )}
       </div>
 
@@ -225,18 +259,31 @@ export function GuestList({
         </div>
 
         <div className="flex items-center gap-2">
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+          >
             <SelectTrigger className="w-[180px] h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Guests ({counts.all})</SelectItem>
               <SelectItem value="going">Going ({counts.going})</SelectItem>
-              <SelectItem value="pending_approval">Pending Approval ({counts.pending_approval})</SelectItem>
-              <SelectItem value="waitlisted">Waitlisted ({counts.waitlisted})</SelectItem>
-              <SelectItem value="rejected">Rejected ({counts.rejected})</SelectItem>
-              <SelectItem value="not_going">Not Going ({counts.not_going})</SelectItem>
-              <SelectItem value="checked_in">Checked In ({counts.checked_in})</SelectItem>
+              <SelectItem value="pending_approval">
+                Pending Approval ({counts.pending_approval})
+              </SelectItem>
+              <SelectItem value="waitlisted">
+                Waitlisted ({counts.waitlisted})
+              </SelectItem>
+              <SelectItem value="rejected">
+                Rejected ({counts.rejected})
+              </SelectItem>
+              <SelectItem value="not_going">
+                Not Going ({counts.not_going})
+              </SelectItem>
+              <SelectItem value="checked_in">
+                Checked In ({counts.checked_in})
+              </SelectItem>
             </SelectContent>
           </Select>
 
@@ -254,7 +301,9 @@ export function GuestList({
         </div>
 
         {displayed.length === 0 ? (
-          <p className="py-8 text-center text-muted-foreground text-sm">No guests found.</p>
+          <p className="py-8 text-center text-muted-foreground text-sm">
+            No guests found.
+          </p>
         ) : (
           <div className="space-y-1">
             {displayed.map(({ registration, user, stats }) => (
@@ -267,45 +316,66 @@ export function GuestList({
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={user.image || undefined} />
                     <AvatarFallback className="text-xs">
-                      {user.name?.split(' ').map(n => n[0]).join('') || '?'}
+                      {user.name
+                        ?.split(" ")
+                        .map((n) => n[0])
+                        .join("") || "?"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{user.name || 'Unknown'}</p>
-                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    <p className="text-sm font-medium truncate">
+                      {user.name || "Unknown"}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {user.email}
+                    </p>
                   </div>
                   {/* Compact stat indicators */}
                   {stats && (
                     <div className="flex items-center gap-2 ml-1">
                       {stats.noShowCount > 0 && (
-                        <Badge variant="outline" className="text-xs bg-red-500/10 text-red-500 border-red-500/20">
+                        <Badge
+                          variant="outline"
+                          className="text-xs bg-red-500/10 text-red-500 border-red-500/20"
+                        >
                           {stats.noShowCount} NS
                         </Badge>
                       )}
                       <span className="text-xs text-muted-foreground hidden sm:inline">
                         {stats.eventsAttended} attended
                       </span>
-                      {(stats.semesterLotteryWins > 0 || stats.semesterLotteryLosses > 0) && (
+                      {(stats.semesterLotteryWins > 0 ||
+                        stats.semesterLotteryLosses > 0) && (
                         <span className="text-xs text-muted-foreground hidden md:inline">
-                          {stats.semesterLotteryWins}W / {stats.semesterLotteryLosses}L
+                          {stats.semesterLotteryWins}W /{" "}
+                          {stats.semesterLotteryLosses}L
                         </span>
                       )}
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2 ml-2" onClick={(e) => e.stopPropagation()}>
-                  {event.requireApproval && registration.lotteryPriorityScore != null && (
-                    <span className="text-xs text-muted-foreground">
-                      Score: {registration.lotteryPriorityScore.toFixed(1)}
-                    </span>
-                  )}
+                <div
+                  className="flex items-center gap-2 ml-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {event.requireApproval &&
+                    registration.lotteryPriorityScore != null && (
+                      <span className="text-xs text-muted-foreground">
+                        Score: {registration.lotteryPriorityScore.toFixed(1)}
+                      </span>
+                    )}
                   <span className="text-xs text-muted-foreground hidden sm:inline">
                     {formatRelativeTime(registration.createdAt)}
                   </span>
-                  <Badge variant="outline" className={`text-xs ${statusColors[registration.status] || ''}`}>
-                    {registration.status.replaceAll('_', ' ')}
+                  <Badge
+                    variant="outline"
+                    className={`text-xs ${
+                      statusColors[registration.status] || ""
+                    }`}
+                  >
+                    {registration.status.replaceAll("_", " ")}
                   </Badge>
-                  {registration.status === 'pending_approval' ? (
+                  {registration.status === "pending_approval" ? (
                     <>
                       <Button
                         variant="ghost"
