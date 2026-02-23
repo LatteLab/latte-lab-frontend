@@ -16,7 +16,30 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Latte Lab",
-  description: "Latte Lab Application",
+  description: "MIT's coffee science community — events, tastings, and more.",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://mit-latte-lab.vercel.app"
+  ),
+  openGraph: {
+    title: "Latte Lab",
+    description: "MIT's coffee science community — events, tastings, and more.",
+    type: "website",
+    siteName: "Latte Lab",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Latte Lab — MIT coffee science",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Latte Lab",
+    description: "MIT's coffee science community — events, tastings, and more.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({
