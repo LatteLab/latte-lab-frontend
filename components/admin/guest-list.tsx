@@ -18,7 +18,7 @@ import { LotteryReview } from '@/components/admin/lottery-review';
 import { UserDetailModal } from '@/components/admin/user-detail-modal';
 import { approveRegistration, denyRegistration, removeRegistration, getUserDetailForModal } from '@/app/actions/events';
 import { toast } from 'sonner';
-import { Search, ClipboardCheck, Trash2, Check, X } from 'lucide-react';
+import { Search, ClipboardCheck, Trash2, Check, X, Mail } from 'lucide-react';
 import Link from 'next/link';
 import type { Event } from '@/lib/db/schema';
 import type { Registration } from '@/lib/types/event';
@@ -194,6 +194,12 @@ export function GuestList({
             Check In Guests
           </Button>
         </Link>
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/admin/email/compose?audienceType=event&eventId=${event.id}`}>
+            <Mail className="h-3.5 w-3.5 mr-1.5" />
+            Email Registrants
+          </Link>
+        </Button>
         {event.requireApproval && event.status === 'open' && !hasDraft && (
           <LotteryDraw eventId={event.id} entrantCount={counts.pending_approval} />
         )}
