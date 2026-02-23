@@ -17,8 +17,8 @@ This document tracks outstanding tasks for the Latte Lab frontend application.
 
 ## 2. Upcoming Features
 
-- [X] **Invitation-only event type** — New event type where admins can invite specific members (beyond waitlist/lottery)
-- [ ] **Email notifications (Resend)** — Transactional emails for registration confirmations, lottery results, event reminders
+- [X] **Email notifications (Resend)** — Transactional emails for registration confirmations, lottery results, event reminders
+  - [ ] Verify Resend Works after finding a solid domain
 - [ ] **Mailchimp sync** — Sync member list with Mailchimp for newsletters and marketing emails
 - [ ] **QR code check-in** — Generate QR codes for attendees, scan at door for faster check-in flow
 - [ ] **Mutuals** — Show which friends/members have attended the same events (inspired by Partiful)
