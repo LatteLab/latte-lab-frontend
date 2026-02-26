@@ -88,6 +88,10 @@ export function EventForm({
       toast.error("Capacity must be at least 1");
       return;
     }
+    if (!isEditing && startDate && startDate < new Date()) {
+      toast.error("Start date must be in the future");
+      return;
+    }
     if (endDate && startDate && endDate <= startDate) {
       toast.error("End date must be after start date");
       return;
@@ -143,13 +147,13 @@ export function EventForm({
         />
 
         {/* Right: Form Fields */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Event Name */}
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Event Name"
-            className="border-0 text-4xl md:text-5xl font-bold placeholder:text-muted-foreground/30 focus-visible:ring-0 p-0 h-auto tracking-tight leading-tight"
+            className="border-0 text-3xl md:text-4xl font-bold placeholder:text-muted-foreground/30 focus-visible:ring-0 p-0 h-auto tracking-tight leading-tight"
             required
           />
 
@@ -241,8 +245,8 @@ export function EventForm({
                 />
               </div>
 
-              {/* Waitlist (conditional: shown when capacity is set and approval is off) */}
-              {capacity && !requireApproval && (
+              {/* Waitlist (conditional: shown when capacity is set) */}
+              {capacity && (
                 <div className="flex items-center justify-between px-3 sm:px-4 py-2">
                   <div className="flex items-center gap-2.5">
                     <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
@@ -273,10 +277,7 @@ export function EventForm({
                 ) : (
                   <Switch
                     checked={requireApproval}
-                    onCheckedChange={(checked) => {
-                      setRequireApproval(checked);
-                      if (checked) setWaitlistEnabled(false);
-                    }}
+                    onCheckedChange={setRequireApproval}
                   />
                 )}
               </div>

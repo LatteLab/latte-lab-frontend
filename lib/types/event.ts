@@ -30,6 +30,18 @@ export interface RegistrationWithStats extends RegistrationRow {
 /** Component-friendly type — stats may or may not be present */
 export type Registration = RegistrationRow & { stats?: RegistrationStats };
 
+export const statusLabels: Record<string, string> = {
+  registered: 'Going',
+  waitlisted: 'Waitlist',
+  pending_approval: 'Pending',
+  selected: 'Selected',
+  rejected: 'Not Going',
+  checked_in: 'Checked In',
+  no_show: 'No Show',
+  draft_selected: 'Draft Selected',
+  draft_rejected: 'Draft Rejected',
+};
+
 export const statusColors: Record<string, string> = {
   registered: 'bg-green-500/10 text-green-500 border-green-500/20',
   waitlisted: 'bg-amber-500/10 text-amber-500 border-amber-500/20',

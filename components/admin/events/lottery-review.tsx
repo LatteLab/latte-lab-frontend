@@ -14,19 +14,22 @@ import {
 } from '@/components/ui/dialog';
 import {
   removeDraftSelected,
+  promoteDraftRejected,
   rerollLottery,
   finalizeLottery,
   discardLotteryDraft,
 } from '@/app/actions/events';
 import { toast } from 'sonner';
-import { X, RefreshCw, Check, Undo2, AlertTriangle } from 'lucide-react';
+import { X, Plus, RefreshCw, Check, Undo2, AlertTriangle } from 'lucide-react';
 import type { Registration } from '@/lib/types/event';
 
 export function LotteryReview({
   eventId,
+  capacity,
   registrations,
 }: {
   eventId: string;
+  capacity: number;
   registrations: Registration[];
 }) {
   const [showFinalize, setShowFinalize] = useState(false);
@@ -35,6 +38,12 @@ export function LotteryReview({
 
   const draftSelected = registrations.filter(r => r.registration.status === 'draft_selected');
   const draftRejected = registrations.filter(r => r.registration.status === 'draft_rejected');
+  const confirmedCount = registrations.filter(r =>
+    ['registered', 'selected', 'checked_in'].includes(r.registration.status)
+  ).length;
+  const totalSlots = Math.max(0, capacity - confirmedCount);
+  const openSlots = Math.max(0, totalSlots - draftSelected.length);
+  const rerollCount = Math.min(openSlots, draftRejected.length);
 
   const handleRemove = (registrationId: string) => {
     startTransition(async () => {
@@ -47,11 +56,28 @@ export function LotteryReview({
     });
   };
 
+  const handlePromote = (registrationId: string) => {
+    startTransition(async () => {
+      try {
+        await promoteDraftRejected(registrationId, eventId);
+        toast.success('Added to selected');
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to promote');
+      }
+    });
+  };
+
   const handleReroll = () => {
     startTransition(async () => {
       try {
         const result = await rerollLottery(eventId);
-        toast.success(`Re-rolled: ${result.newlySelected.length} new selection(s)`);
+        if (result.noOpenSlots) {
+          toast.info('All slots are filled — remove a selection first to re-roll');
+        } else if (result.newlySelected.length === 0) {
+          toast.info('No candidates remaining to fill open slots');
+        } else {
+          toast.success(`Re-rolled: ${result.newlySelected.length} new selection(s)`);
+        }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Re-roll failed');
       }
@@ -96,10 +122,11 @@ export function LotteryReview({
             variant="outline"
             size="sm"
             onClick={handleReroll}
-            disabled={isPending || draftRejected.length === 0}
+            disabled={isPending || openSlots <= 0 || draftRejected.length === 0}
+            title={openSlots <= 0 ? 'All slots filled — remove a selection to re-roll' : undefined}
           >
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-            Re-roll Open Slots
+            Re-roll{rerollCount > 0 ? ` (${rerollCount})` : ''}
           </Button>
           <Button
             size="sm"
@@ -123,9 +150,14 @@ export function LotteryReview({
 
       {/* Selected */}
       <div>
-        <h4 className="text-sm font-medium text-green-600 mb-2">
-          Selected ({draftSelected.length})
-        </h4>
+        <div className="flex items-baseline justify-between mb-2">
+          <h4 className="text-sm font-medium text-green-600">
+            Selected ({draftSelected.length})
+          </h4>
+          <span className="text-xs text-muted-foreground">
+            {draftSelected.length} of {totalSlots} slots filled
+          </span>
+        </div>
         {draftSelected.length === 0 ? (
           <p className="text-sm text-muted-foreground py-2">No selections — use Re-roll to fill slots.</p>
         ) : (
@@ -215,11 +247,23 @@ export function LotteryReview({
                     </div>
                   )}
                 </div>
-                {registration.lotteryPriorityScore != null && (
-                  <span className="text-xs text-muted-foreground">
-                    Score: {registration.lotteryPriorityScore.toFixed(1)}
-                  </span>
-                )}
+                <div className="flex items-center gap-2 ml-2">
+                  {registration.lotteryPriorityScore != null && (
+                    <span className="text-xs text-muted-foreground">
+                      Score: {registration.lotteryPriorityScore.toFixed(1)}
+                    </span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-500/10"
+                    onClick={() => handlePromote(registration.id)}
+                    disabled={isPending || openSlots <= 0}
+                    title={openSlots <= 0 ? 'All slots filled' : 'Add to selected'}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -233,7 +277,7 @@ export function LotteryReview({
             <DialogTitle>Finalize Lottery</DialogTitle>
             <DialogDescription>
               This will confirm {draftSelected.length} selected and {draftRejected.length} rejected.
-              Registration will close and lottery history will be recorded. This cannot be undone.
+              Lottery history will be recorded. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

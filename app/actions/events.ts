@@ -254,6 +254,29 @@ export async function removeDraftSelected(registrationId: string, eventId: strin
   revalidatePath(`/admin/events/${eventId}`);
 }
 
+export async function promoteDraftRejected(registrationId: string, eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const event = await getEventById(eventId);
+  if (!event || event.lotteryStatus !== 'draft') throw new Error('No lottery draft in progress');
+
+  const regs = await getEventRegistrations(eventId);
+  const reg = regs.find(r => r.registration.id === registrationId);
+  if (!reg || reg.registration.status !== 'draft_rejected') {
+    throw new Error('Registration is not draft rejected');
+  }
+
+  const draftSelectedCount = regs.filter(r => r.registration.status === 'draft_selected').length;
+  const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
+  const openSlots = Math.max(0, event.capacity - confirmedCount - draftSelectedCount);
+
+  if (openSlots <= 0) throw new Error('No open slots available');
+
+  await updateRegistration(registrationId, { status: 'draft_selected' });
+  revalidatePath(`/admin/events/${eventId}`);
+}
+
 export async function rerollLottery(eventId: string) {
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
@@ -270,7 +293,7 @@ export async function rerollLottery(eventId: string) {
   const openSlots = totalSlots - draftSelected.length;
 
   if (openSlots <= 0 || draftRejected.length === 0) {
-    throw new Error('No open slots to fill or no remaining candidates');
+    return { newlySelected: [], remainingRejected: draftRejected.length, noOpenSlots: true };
   }
 
   const scored = await Promise.all(
@@ -309,6 +332,7 @@ export async function rerollLottery(eventId: string) {
   return {
     newlySelected: newSelected.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
     remainingRejected: pool.length,
+    noOpenSlots: false,
   };
 }
 
@@ -345,7 +369,7 @@ export async function finalizeLottery(eventId: string) {
   ];
   await createLotteryHistoryEntries(historyEntries);
 
-  await dbUpdateEvent(eventId, { lotteryStatus: 'finalized', status: 'closed' });
+  await dbUpdateEvent(eventId, { lotteryStatus: 'finalized' });
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/user/events/${eventId}`);
@@ -470,6 +494,50 @@ export async function denyRegistration(registrationId: string, eventId: string) 
 
   await getPendingRegistration(registrationId, eventId);
   await updateRegistration(registrationId, { status: 'rejected' });
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidatePath(`/user/events/${eventId}`);
+}
+
+// `selected` excluded — lottery-only status set via finalizeLottery, not manual admin change
+const ALLOWED_STATUS_CHANGES = ['registered', 'waitlisted', 'pending_approval', 'rejected', 'checked_in', 'no_show'] as const;
+
+export async function changeRegistrationStatus(
+  registrationId: string,
+  eventId: string,
+  newStatus: string,
+) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  if (!ALLOWED_STATUS_CHANGES.includes(newStatus as typeof ALLOWED_STATUS_CHANGES[number])) {
+    throw new Error('Invalid status');
+  }
+
+  const event = await getEventById(eventId);
+  if (!event) throw new Error('Event not found');
+
+  const regs = await getEventRegistrations(eventId);
+  const reg = regs.find(r => r.registration.id === registrationId);
+  if (!reg) throw new Error('Registration not found');
+
+  if (reg.registration.status === newStatus) {
+    throw new Error('Registration already has this status');
+  }
+
+  // Capacity check when moving to a "going" status
+  if (newStatus === 'registered' || newStatus === 'checked_in') {
+    const goingStatuses = ['registered', 'selected', 'checked_in'];
+    const isAlreadyGoing = goingStatuses.includes(reg.registration.status);
+    if (!isAlreadyGoing) {
+      const confirmedCount = await getRegistrationCount(eventId, goingStatuses);
+      if (confirmedCount >= event.capacity) {
+        throw new Error('Event is at capacity');
+      }
+    }
+  }
+
+  await updateRegistration(registrationId, { status: newStatus as typeof ALLOWED_STATUS_CHANGES[number] });
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/user/events/${eventId}`);

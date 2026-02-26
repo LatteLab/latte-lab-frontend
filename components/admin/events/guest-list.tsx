@@ -16,6 +16,7 @@ import {
 import { LotteryDraw } from "@/components/admin/events/lottery-draw";
 import { LotteryReview } from "@/components/admin/events/lottery-review";
 import { UserDetailModal } from "@/components/admin/users/user-detail-modal";
+import { StatusChangeDialog } from "@/components/admin/events/status-change-dialog";
 import {
   approveRegistration,
   denyRegistration,
@@ -27,7 +28,7 @@ import { Search, ClipboardCheck, Trash2, Check, X, Mail } from "lucide-react";
 import Link from "next/link";
 import type { Event } from "@/lib/db/schema";
 import type { Registration } from "@/lib/types/event";
-import { statusColors } from "@/lib/types/event";
+import { statusColors, statusLabels } from "@/lib/types/event";
 
 type StatusFilter =
   | "all"
@@ -74,6 +75,7 @@ export function GuestList({
   const [isPending, startTransition] = useTransition();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [statusChangeReg, setStatusChangeReg] = useState<Registration | null>(null);
 
   const hasDraft = event.lotteryStatus === "draft";
 
@@ -241,7 +243,7 @@ export function GuestList({
 
       {/* Lottery Review Panel */}
       {hasDraft && (
-        <LotteryReview eventId={event.id} registrations={registrations} />
+        <LotteryReview eventId={event.id} capacity={event.capacity} registrations={registrations} />
       )}
 
       {/* Guest List */}
@@ -369,11 +371,12 @@ export function GuestList({
                   </span>
                   <Badge
                     variant="outline"
-                    className={`text-xs ${
+                    className={`text-xs cursor-pointer hover:opacity-80 ${
                       statusColors[registration.status] || ""
                     }`}
+                    onClick={() => setStatusChangeReg({ registration, user, stats })}
                   >
-                    {registration.status.replaceAll("_", " ")}
+                    {statusLabels[registration.status] || registration.status.replaceAll("_", " ")}
                   </Badge>
                   {registration.status === "pending_approval" ? (
                     <>
@@ -424,6 +427,17 @@ export function GuestList({
         onOpenChange={setModalOpen}
         fetchUserDetail={getUserDetailForModal}
       />
+
+      {/* Status Change Dialog */}
+      {statusChangeReg && (
+        <StatusChangeDialog
+          registration={statusChangeReg.registration}
+          user={statusChangeReg.user}
+          eventId={event.id}
+          open={!!statusChangeReg}
+          onOpenChange={(open) => { if (!open) setStatusChangeReg(null); }}
+        />
+      )}
     </div>
   );
 }

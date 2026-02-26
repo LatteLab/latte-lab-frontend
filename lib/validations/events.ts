@@ -20,10 +20,15 @@ const endDateAfterStart = {
   path: ['endDate'] as string[],
 };
 
-export const createEventSchema = eventBaseSchema.refine(
-  endDateAfterStart.check,
-  { message: endDateAfterStart.message, path: endDateAfterStart.path },
-);
+export const createEventSchema = eventBaseSchema
+  .refine(
+    (data) => !data.date || data.date > new Date(),
+    { message: 'Start date must be in the future', path: ['date'] },
+  )
+  .refine(
+    endDateAfterStart.check,
+    { message: endDateAfterStart.message, path: endDateAfterStart.path },
+  );
 
 // Update schema: requireApproval is NOT included (locked at creation)
 export const updateEventSchema = eventBaseSchema
