@@ -186,11 +186,16 @@ export function GuestDetailSheet({
   useEffect(() => {
     if (open && registration) {
       fetchData();
-    } else {
+    }
+  }, [open, registration, fetchData]);
+
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
       setTimeline([]);
       setUserDetail(null);
     }
-  }, [open, registration, fetchData]);
+    onOpenChange(newOpen);
+  };
 
   const handleRemove = () => {
     if (!registration) return;
@@ -216,7 +221,7 @@ export function GuestDetailSheet({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
+      <Sheet open={open} onOpenChange={handleOpenChange}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           <SheetHeader className="px-6 pt-6">
             <SheetTitle>Guest Details</SheetTitle>
