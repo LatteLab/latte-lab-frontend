@@ -4,6 +4,7 @@ import { getEventById, getUserRegistration, getEventRegistrations, getRegistrati
 import { EventRegistrationButton } from '@/components/user/event-registration-button';
 import { PastEventStatusCard } from '@/components/user/past-event-status-card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { GuestListSection } from '@/components/user/guest-list-section';
 import { Calendar, MapPin, Users, Lock, ShieldCheck } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { isGradient, parseGradient, gradientConfigToCSS } from '@/lib/gradients';
@@ -62,6 +63,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const attendees = registrations.filter(r =>
     ['registered', 'selected', 'checked_in'].includes(r.registration.status)
   );
+
+  const isConfirmedAttendee = registration
+    ? ['registered', 'selected', 'checked_in'].includes(registration.status)
+    : false;
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -203,28 +208,13 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               )}
 
               {/* Guest list */}
-              {attendees.length > 0 && (
-                <div className="pt-4 border-t">
-                  <h3 className="text-sm font-medium mb-3">
-                    {attendees.length} {attendees.length === 1 ? 'person' : 'people'} going
-                  </h3>
-                  <div className="flex -space-x-2">
-                    {attendees.slice(0, 8).map((a) => (
-                      <Avatar key={a.user.id} className="h-8 w-8 border-2 border-background">
-                        <AvatarImage src={a.user.image || undefined} />
-                        <AvatarFallback className="text-xs">
-                          {a.user.name?.split(' ').map(n => n[0]).join('') || '?'}
-                        </AvatarFallback>
-                      </Avatar>
-                    ))}
-                    {attendees.length > 8 && (
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium">
-                        +{attendees.length - 8}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              <GuestListSection
+                attendees={isConfirmedAttendee
+                  ? attendees
+                  : attendees.map(a => ({ user: { id: a.user.id, name: null, email: null, image: a.user.image } }))
+                }
+                canViewNames={isConfirmedAttendee}
+              />
             </div>
           </div>
         </div>
