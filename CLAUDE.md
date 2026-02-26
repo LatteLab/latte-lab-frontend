@@ -90,6 +90,14 @@ lib/
 
 ## Key Patterns
 
+**Lottery & registration flow:**
+- Registration statuses: `pending_approval` → lottery/manual → `selected` (lottery) or `registered` (FCFS/approved) → `checked_in` or `no_show`
+- `selected` status is lottery-specific (set only by `finalizeLottery`). `registered` is for FCFS/manual approval. This distinction matters for no-show reconciliation.
+- `lotteryStatus` on events is a draft lock: only `'draft'` gates behavior. `'finalized'` is informational (multiple lottery rounds are supported).
+- `closeEvent()` is the reconciliation point: revokes lottery wins for no-shows (`selected` → `no_show`) and marks the event completed.
+- `changeRegistrationStatus()` also revokes lottery wins when moving a `selected` registration to a non-going status.
+- Priority score formula: `1.0 + losses*0.5 - wins*0.75 - noShows*1.5` — depends on accurate `lottery_history`, so wins must be revoked on no-show.
+
 **Auth check pattern:**
 
 ```typescript
