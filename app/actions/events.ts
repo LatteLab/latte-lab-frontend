@@ -173,6 +173,30 @@ export async function cancelRegistration(eventId: string) {
   revalidatePath(`/admin/events/${eventId}`);
 }
 
+/** Weighted random selection — picks `slots` entries from `pool` (mutates pool). */
+function weightedSelect<T extends { score: number }>(pool: T[], slots: number): T[] {
+  if (slots >= pool.length) {
+    const all = pool.splice(0);
+    return all;
+  }
+  const selected: T[] = [];
+  for (let i = 0; i < slots; i++) {
+    const totalWeight = pool.reduce((sum, e) => sum + e.score, 0);
+    let random = Math.random() * totalWeight;
+    let pickedIndex = pool.length - 1;
+    for (let j = 0; j < pool.length; j++) {
+      random -= pool[j].score;
+      if (random <= 0) {
+        pickedIndex = j;
+        break;
+      }
+    }
+    selected.push(pool[pickedIndex]);
+    pool.splice(pickedIndex, 1);
+  }
+  return selected;
+}
+
 export async function runLotteryDraft(eventId: string) {
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
@@ -196,23 +220,8 @@ export async function runLotteryDraft(eventId: string) {
 
   const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
   const spots = Math.max(0, event.capacity - confirmedCount);
-  const selected: typeof scored = [];
   const pool = [...scored];
-
-  for (let i = 0; i < Math.min(spots, pool.length); i++) {
-    const totalWeight = pool.reduce((sum, e) => sum + e.score, 0);
-    let random = Math.random() * totalWeight;
-    let pickedIndex = 0;
-    for (let j = 0; j < pool.length; j++) {
-      random -= pool[j].score;
-      if (random <= 0) {
-        pickedIndex = j;
-        break;
-      }
-    }
-    selected.push(pool[pickedIndex]);
-    pool.splice(pickedIndex, 1);
-  }
+  const selected = weightedSelect(pool, spots);
 
   const selectedIds = new Set(selected.map(s => s.registration.id));
 
@@ -303,23 +312,8 @@ export async function rerollLottery(eventId: string) {
     })
   );
 
-  const newSelected: typeof scored = [];
   const pool = [...scored];
-
-  for (let i = 0; i < Math.min(openSlots, pool.length); i++) {
-    const totalWeight = pool.reduce((sum, e) => sum + e.score, 0);
-    let random = Math.random() * totalWeight;
-    let pickedIndex = 0;
-    for (let j = 0; j < pool.length; j++) {
-      random -= pool[j].score;
-      if (random <= 0) {
-        pickedIndex = j;
-        break;
-      }
-    }
-    newSelected.push(pool[pickedIndex]);
-    pool.splice(pickedIndex, 1);
-  }
+  const newSelected = weightedSelect(pool, openSlots);
 
   await Promise.all(
     newSelected.map(async (entry) =>
