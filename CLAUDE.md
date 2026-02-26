@@ -78,7 +78,7 @@ lib/
 
 ## Database Tables
 
-- `user`, `account`, `session`, `authenticator` — NextAuth tables
+- `users`, `accounts`, `session`, `authenticator` — NextAuth tables (Drizzle pgTable names match)
 - `admin_whitelist` — Admin email whitelist
 - `events` — Event details (status: open/closed/completed, lotteryStatus: draft/finalized)
 - `event_registrations` — User registrations with status tracking

@@ -65,7 +65,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className={`mx-auto max-w-4xl px-4 py-8 ${!isPastEvent ? 'pb-40 md:pb-8' : ''}`}>
           <div className="grid gap-8 md:grid-cols-[1fr_1.2fr]">
             {/* Left: Cover image */}
             <div>
@@ -148,7 +148,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 </div>
               </div>
 
-              {/* Registration container */}
+              {/* Registration container — hidden on mobile when sticky CTA is shown */}
               {isPastEvent ? (
                 <PastEventStatusCard
                   registrationStatus={registration?.status ?? null}
@@ -156,7 +156,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                   userImage={session.user.image || null}
                 />
               ) : (
-                <div className="rounded-xl border p-5 space-y-4">
+                <div className="hidden md:block rounded-xl border p-5 space-y-4">
                   <p className="text-sm font-medium text-muted-foreground">Registration</p>
 
                   {event.requireApproval && (
