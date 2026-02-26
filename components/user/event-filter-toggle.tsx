@@ -8,13 +8,18 @@ const tabs = [
   { label: 'Past', value: 'past' },
 ] as const;
 
-export function EventFilterToggle({ active }: { active: 'upcoming' | 'past' }) {
+interface EventFilterToggleProps {
+  active: 'upcoming' | 'past';
+  basePath?: string;
+}
+
+export function EventFilterToggle({ active, basePath = '/user/events' }: EventFilterToggleProps) {
   return (
-    <div className="relative flex items-center rounded-full bg-muted p-0.5">
+    <div className="relative flex w-fit items-center rounded-full bg-muted p-0.5">
       {tabs.map((tab) => (
         <Link
           key={tab.value}
-          href={`/user/events?filter=${tab.value}`}
+          href={`${basePath}?filter=${tab.value}`}
           className={`relative z-10 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
             active === tab.value
               ? 'text-foreground'
