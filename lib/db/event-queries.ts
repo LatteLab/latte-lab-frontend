@@ -1,7 +1,7 @@
 import { db } from './index';
-import { events, eventRegistrations, eventAccess, lotteryHistory, users, semesters } from './schema';
+import { events, eventRegistrations, eventAccess, lotteryHistory, users, semesters, registrationAuditLog } from './schema';
 import { eq, and, or, desc, gte, lt, count, inArray } from 'drizzle-orm';
-import type { Event, NewEvent, EventRegistration } from './schema';
+import type { Event, NewEvent, EventRegistration, NewRegistrationAuditLog } from './schema';
 import type { RegistrationRow, RegistrationWithStats } from '@/lib/types/event';
 
 // ============================================================================
@@ -336,6 +336,17 @@ export async function createLotteryHistoryEntries(
   await db.insert(lotteryHistory).values(entries);
 }
 
+export async function deleteLotteryWins(eventId: string, userIds: string[]) {
+  if (userIds.length === 0) return;
+  await db.delete(lotteryHistory).where(
+    and(
+      eq(lotteryHistory.eventId, eventId),
+      inArray(lotteryHistory.userId, userIds),
+      eq(lotteryHistory.outcome, 'won')
+    )
+  );
+}
+
 // ============================================================================
 // User Timeline Queries
 // ============================================================================
@@ -545,4 +556,32 @@ export async function getUserEventHistory(userId: string) {
     .innerJoin(events, eq(eventRegistrations.eventId, events.id))
     .where(eq(eventRegistrations.userId, userId))
     .orderBy(desc(events.date));
+}
+
+// ============================================================================
+// Registration Audit Log Queries
+// ============================================================================
+
+export async function createAuditLogEntry(entry: NewRegistrationAuditLog) {
+  const [row] = await db.insert(registrationAuditLog).values(entry).returning();
+  return row;
+}
+
+export async function createAuditLogEntries(entries: NewRegistrationAuditLog[]) {
+  if (entries.length === 0) return;
+  await db.insert(registrationAuditLog).values(entries);
+}
+
+export async function getRegistrationAuditLog(registrationId: string) {
+  return db.select({
+    log: registrationAuditLog,
+    actor: {
+      id: users.id,
+      name: users.name,
+    },
+  })
+    .from(registrationAuditLog)
+    .leftJoin(users, eq(registrationAuditLog.actorId, users.id))
+    .where(eq(registrationAuditLog.registrationId, registrationId))
+    .orderBy(desc(registrationAuditLog.createdAt));
 }

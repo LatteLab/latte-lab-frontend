@@ -86,6 +86,7 @@ lib/
 - `semesters` — Academic semester tracking (auto-detected or admin override)
 - `email_blasts` — Email campaigns (draft/sending/sent/failed, audience filters as JSON)
 - `email_recipients` — Per-recipient delivery tracking (status via Resend webhooks)
+- `registration_audit_log` — Tracks every registration status change (actor, old/new status, action type)
 
 ## Key Patterns
 
@@ -116,6 +117,8 @@ if (!session?.user) throw new Error("Unauthorized");
 
 **Auto-save before send:** When a client action (Send, Preview) triggers a server action that reads state from DB, always save current form state first. Otherwise the server uses stale data.
 
+**Audit logging:** Every server action that changes a registration status must call `createAuditLogEntry()` with the old/new status, action type, and actor info. For bulk operations, use `createAuditLogEntries()`. Always create the audit entry *before* any destructive operation (e.g. `deleteRegistration`) since cascade deletes will remove it.
+
 ## Gotchas
 
 - Supabase Storage RLS: client uses anon key, so policies must include `anon` role (not just `authenticated`). When creating new buckets or tables, always enable RLS and add explicit policies — Supabase disables RLS by default, which means public access to everything.
@@ -124,3 +127,4 @@ if (!session?.user) throw new Error("Unauthorized");
 - `pnpm db:push` may conflict when multiple worktrees target the same Supabase DB. For schema changes from a non-primary worktree, apply SQL directly via Supabase MCP (`apply_migration` or `execute_sql`).
 - Mobile-first: most users access on mobile. Always test layouts in narrow viewports. When reusing components in constrained containers (Sheets, modals, popovers), pass a `compact` prop to adapt layout — don't assume the full-page grid will fit.
 - Zsh glob: paths like `app/(admin)/` must be quoted in shell commands (`'app/(admin)/'`) or zsh interprets parens as glob patterns.
+- shadcn `SheetContent` has zero padding on the content body (only `SheetHeader` has `p-4`) and defaults to `w-3/4` on mobile. For full-screen mobile sheets, add `w-full` to the className. Add explicit `px-6` to content areas.

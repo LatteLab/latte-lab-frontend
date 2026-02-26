@@ -15,13 +15,12 @@ import {
 } from "@/components/ui/select";
 import { LotteryDraw } from "@/components/admin/events/lottery-draw";
 import { LotteryReview } from "@/components/admin/events/lottery-review";
-import { UserDetailModal } from "@/components/admin/users/user-detail-modal";
+import { GuestDetailSheet } from "@/components/admin/events/guest-detail-sheet";
 import { StatusChangeDialog } from "@/components/admin/events/status-change-dialog";
 import {
   approveRegistration,
   denyRegistration,
   removeRegistration,
-  getUserDetailForModal,
 } from "@/app/actions/events";
 import { toast } from "sonner";
 import { Search, ClipboardCheck, Trash2, Check, X, Mail } from "lucide-react";
@@ -73,7 +72,7 @@ export function GuestList({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("register_time");
   const [isPending, startTransition] = useTransition();
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [statusChangeReg, setStatusChangeReg] = useState<Registration | null>(null);
 
@@ -185,8 +184,8 @@ export function GuestList({
     });
   };
 
-  const handleRowClick = (userId: string) => {
-    setSelectedUserId(userId);
+  const handleRowClick = (reg: Registration) => {
+    setSelectedRegistration(reg);
     setModalOpen(true);
   };
 
@@ -312,7 +311,7 @@ export function GuestList({
               <div
                 key={registration.id}
                 className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-accent/50 transition-colors"
-                onClick={() => handleRowClick(user.id)}
+                onClick={() => handleRowClick({ registration, user, stats })}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar className="h-8 w-8">
@@ -420,12 +419,12 @@ export function GuestList({
         )}
       </div>
 
-      {/* User Detail Modal */}
-      <UserDetailModal
-        userId={selectedUserId}
+      {/* Guest Detail Sheet */}
+      <GuestDetailSheet
+        registration={selectedRegistration}
+        eventId={event.id}
         open={modalOpen}
         onOpenChange={setModalOpen}
-        fetchUserDetail={getUserDetailForModal}
       />
 
       {/* Status Change Dialog */}

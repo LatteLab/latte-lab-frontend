@@ -129,6 +129,20 @@ export const lotteryHistory = pgTable('lottery_history', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Registration audit log — tracks every status change with actor info
+export const registrationAuditLog = pgTable('registration_audit_log', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  registrationId: uuid('registration_id').references(() => eventRegistrations.id, { onDelete: 'cascade' }),
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  oldStatus: text('old_status'),
+  newStatus: text('new_status').notNull(),
+  action: text('action').notNull(), // 'registered', 'approved', 'denied', 'lottery_won', 'lottery_lost', 'checked_in', 'no_show', 'status_changed', 'removed'
+  actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  actorType: text('actor_type').notNull(), // 'user', 'admin', 'system'
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Semesters table - tracks academic semesters for lottery scoping
 export const semesters = pgTable('semesters', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -189,3 +203,5 @@ export type EmailBlast = typeof emailBlasts.$inferSelect;
 export type NewEmailBlast = typeof emailBlasts.$inferInsert;
 export type EmailRecipient = typeof emailRecipients.$inferSelect;
 export type NewEmailRecipient = typeof emailRecipients.$inferInsert;
+export type RegistrationAuditLog = typeof registrationAuditLog.$inferSelect;
+export type NewRegistrationAuditLog = typeof registrationAuditLog.$inferInsert;

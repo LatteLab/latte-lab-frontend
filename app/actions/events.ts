@@ -23,6 +23,10 @@ import {
   getUserEventHistory,
   getUserLotteryStats,
   getUserNoShowCount,
+  createAuditLogEntry,
+  createAuditLogEntries,
+  getRegistrationAuditLog as dbGetRegistrationAuditLog,
+  deleteLotteryWins,
 } from '@/lib/db/event-queries';
 import { getUserById } from '@/lib/db/queries';
 import { createEventSchema, updateEventSchema } from '@/lib/validations/events';
@@ -117,10 +121,20 @@ export async function registerForEvent(eventId: string) {
 
   // Require approval — always pending_approval
   if (event.requireApproval) {
-    await createRegistration({
+    const reg = await createRegistration({
       userId: session.user.id,
       eventId,
       status: 'pending_approval',
+    });
+    await createAuditLogEntry({
+      registrationId: reg.id,
+      eventId,
+      userId: session.user.id,
+      oldStatus: null,
+      newStatus: 'pending_approval',
+      action: 'registered',
+      actorId: null,
+      actorType: 'user',
     });
     revalidatePath(`/user/events/${eventId}`);
     revalidatePath(`/admin/events/${eventId}`);
@@ -131,16 +145,36 @@ export async function registerForEvent(eventId: string) {
   const confirmedCount = await getRegistrationCount(eventId, ['registered', 'checked_in']);
 
   if (confirmedCount < event.capacity) {
-    await createRegistration({
+    const reg = await createRegistration({
       userId: session.user.id,
       eventId,
       status: 'registered',
     });
+    await createAuditLogEntry({
+      registrationId: reg.id,
+      eventId,
+      userId: session.user.id,
+      oldStatus: null,
+      newStatus: 'registered',
+      action: 'registered',
+      actorId: null,
+      actorType: 'user',
+    });
   } else if (event.waitlistEnabled) {
-    await createRegistration({
+    const reg = await createRegistration({
       userId: session.user.id,
       eventId,
       status: 'waitlisted',
+    });
+    await createAuditLogEntry({
+      registrationId: reg.id,
+      eventId,
+      userId: session.user.id,
+      oldStatus: null,
+      newStatus: 'waitlisted',
+      action: 'registered',
+      actorId: null,
+      actorType: 'user',
     });
   } else {
     throw new Error('Event is full');
@@ -154,7 +188,25 @@ export async function cancelRegistration(eventId: string) {
   const session = await auth();
   if (!session?.user) throw new Error('Unauthorized');
 
+  // Get the registration before deleting so we can log it
+  const existing = await getUserRegistration(session.user.id, eventId);
+
   await deleteRegistration(session.user.id, eventId);
+
+  // Audit entry — will be cascade-deleted with the registration, but the waitlist
+  // promotion audit below survives since that registration persists
+  if (existing) {
+    await createAuditLogEntry({
+      registrationId: existing.id,
+      eventId,
+      userId: session.user.id,
+      oldStatus: existing.status,
+      newStatus: 'cancelled',
+      action: 'removed',
+      actorId: null,
+      actorType: 'user',
+    });
+  }
 
   // If waitlist enabled, promote next person
   const event = await getEventById(eventId);
@@ -165,6 +217,16 @@ export async function cancelRegistration(eventId: string) {
       const confirmedCount = await getRegistrationCount(eventId, ['registered', 'checked_in']);
       if (confirmedCount < event.capacity) {
         await updateRegistration(waitlisted[0].registration.id, { status: 'registered' });
+        await createAuditLogEntry({
+          registrationId: waitlisted[0].registration.id,
+          eventId,
+          userId: waitlisted[0].user.id,
+          oldStatus: 'waitlisted',
+          newStatus: 'registered',
+          action: 'approved',
+          actorId: null,
+          actorType: 'system',
+        });
       }
     }
   }
@@ -204,7 +266,6 @@ export async function runLotteryDraft(eventId: string) {
   const event = await getEventById(eventId);
   if (!event || !event.requireApproval) throw new Error('Lottery only available for approval-required events');
   if (event.lotteryStatus === 'draft') throw new Error('A lottery draft is already in progress');
-  if (event.lotteryStatus === 'finalized') throw new Error('Lottery has already been finalized');
 
   const regs = await getEventRegistrations(eventId);
   const entrants = regs.filter(r => r.registration.status === 'pending_approval');
@@ -363,6 +424,30 @@ export async function finalizeLottery(eventId: string) {
   ];
   await createLotteryHistoryEntries(historyEntries);
 
+  const auditEntries = [
+    ...draftSelected.map(r => ({
+      registrationId: r.registration.id,
+      eventId,
+      userId: r.user.id,
+      oldStatus: 'draft_selected',
+      newStatus: 'selected',
+      action: 'lottery_won' as const,
+      actorId: null as string | null,
+      actorType: 'system',
+    })),
+    ...draftRejected.map(r => ({
+      registrationId: r.registration.id,
+      eventId,
+      userId: r.user.id,
+      oldStatus: 'draft_rejected',
+      newStatus: 'rejected',
+      action: 'lottery_lost' as const,
+      actorId: null as string | null,
+      actorType: 'system',
+    })),
+  ];
+  await createAuditLogEntries(auditEntries);
+
   await dbUpdateEvent(eventId, { lotteryStatus: 'finalized' });
 
   revalidatePath(`/admin/events/${eventId}`);
@@ -415,7 +500,22 @@ export async function checkinAttendee(registrationId: string, eventId: string) {
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
+  const regs = await getEventRegistrations(eventId);
+  const reg = regs.find(r => r.registration.id === registrationId);
+
   await updateRegistration(registrationId, { status: 'checked_in' });
+  if (reg) {
+    await createAuditLogEntry({
+      registrationId,
+      eventId,
+      userId: reg.user.id,
+      oldStatus: reg.registration.status,
+      newStatus: 'checked_in',
+      action: 'checked_in',
+      actorId: session.user.id,
+      actorType: 'admin',
+    });
+  }
   revalidatePath(`/admin/events/${eventId}/checkin`);
 }
 
@@ -423,13 +523,52 @@ export async function undoCheckin(registrationId: string, eventId: string, previ
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
+  const regs = await getEventRegistrations(eventId);
+  const reg = regs.find(r => r.registration.id === registrationId);
+
   await updateRegistration(registrationId, { status: previousStatus });
+  if (reg) {
+    await createAuditLogEntry({
+      registrationId,
+      eventId,
+      userId: reg.user.id,
+      oldStatus: 'checked_in',
+      newStatus: previousStatus,
+      action: 'status_changed',
+      actorId: session.user.id,
+      actorType: 'admin',
+    });
+  }
   revalidatePath(`/admin/events/${eventId}/checkin`);
 }
 
 export async function closeEvent(eventId: string) {
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  // Revoke lottery wins for lottery winners who didn't check in
+  const regs = await getEventRegistrations(eventId);
+  const noShowLotteryWinners = regs
+    .filter(r => r.registration.status === 'selected')
+    .map(r => r.user.id);
+  await deleteLotteryWins(eventId, noShowLotteryWinners);
+
+  // Audit log entries for all registrations about to be marked no-show
+  const willBeNoShow = regs.filter(r =>
+    ['registered', 'selected'].includes(r.registration.status)
+  );
+  if (willBeNoShow.length > 0) {
+    await createAuditLogEntries(willBeNoShow.map(r => ({
+      registrationId: r.registration.id,
+      eventId,
+      userId: r.user.id,
+      oldStatus: r.registration.status,
+      newStatus: 'no_show',
+      action: 'no_show' as const,
+      actorId: session.user.id,
+      actorType: 'admin' as const,
+    })));
+  }
 
   await bulkMarkNoShow(eventId);
   await dbUpdateEvent(eventId, { status: 'completed' });
@@ -446,6 +585,17 @@ export async function removeRegistration(registrationId: string, eventId: string
   const regs = await getEventRegistrations(eventId);
   const reg = regs.find(r => r.registration.id === registrationId);
   if (!reg) throw new Error('Registration not found');
+
+  await createAuditLogEntry({
+    registrationId,
+    eventId,
+    userId: reg.user.id,
+    oldStatus: reg.registration.status,
+    newStatus: 'removed',
+    action: 'removed',
+    actorId: session.user.id,
+    actorType: 'admin',
+  });
 
   await deleteRegistration(reg.user.id, eventId);
   revalidatePath(`/admin/events/${eventId}`);
@@ -468,7 +618,7 @@ export async function approveRegistration(registrationId: string, eventId: strin
   const event = await getEventById(eventId);
   if (!event) throw new Error('Event not found');
 
-  await getPendingRegistration(registrationId, eventId);
+  const reg = await getPendingRegistration(registrationId, eventId);
 
   // Check capacity before approving
   const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
@@ -477,6 +627,16 @@ export async function approveRegistration(registrationId: string, eventId: strin
   }
 
   await updateRegistration(registrationId, { status: 'registered' });
+  await createAuditLogEntry({
+    registrationId,
+    eventId,
+    userId: reg.user.id,
+    oldStatus: 'pending_approval',
+    newStatus: 'registered',
+    action: 'approved',
+    actorId: session.user.id,
+    actorType: 'admin',
+  });
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/user/events/${eventId}`);
@@ -486,8 +646,18 @@ export async function denyRegistration(registrationId: string, eventId: string) 
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
-  await getPendingRegistration(registrationId, eventId);
+  const reg = await getPendingRegistration(registrationId, eventId);
   await updateRegistration(registrationId, { status: 'rejected' });
+  await createAuditLogEntry({
+    registrationId,
+    eventId,
+    userId: reg.user.id,
+    oldStatus: 'pending_approval',
+    newStatus: 'rejected',
+    action: 'denied',
+    actorId: session.user.id,
+    actorType: 'admin',
+  });
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/user/events/${eventId}`);
@@ -531,7 +701,23 @@ export async function changeRegistrationStatus(
     }
   }
 
+  // Revoke lottery win if a lottery winner is moved to a non-going status
+  const goingStatuses = ['registered', 'selected', 'checked_in'];
+  if (reg.registration.status === 'selected' && !goingStatuses.includes(newStatus)) {
+    await deleteLotteryWins(eventId, [reg.user.id]);
+  }
+
   await updateRegistration(registrationId, { status: newStatus as typeof ALLOWED_STATUS_CHANGES[number] });
+  await createAuditLogEntry({
+    registrationId,
+    eventId,
+    userId: reg.user.id,
+    oldStatus: reg.registration.status,
+    newStatus: newStatus,
+    action: 'status_changed',
+    actorId: session.user.id,
+    actorType: 'admin',
+  });
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/user/events/${eventId}`);
@@ -615,4 +801,11 @@ export async function getUserDetailForModal(userId: string) {
       status: h.registration.status,
     })),
   };
+}
+
+export async function getRegistrationTimeline(registrationId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  return dbGetRegistrationAuditLog(registrationId);
 }
