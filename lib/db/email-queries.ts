@@ -1,7 +1,7 @@
 import { db } from './index';
 import { emailBlasts, emailRecipients, users, eventRegistrations, events } from './schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
-import type { EmailBlast, NewEmailBlast, NewEmailRecipient } from './schema';
+import type { EmailBlast, NewEmailBlast, NewEmailRecipient, EmailRecipientStatus, RegistrationStatus } from './schema';
 import type { ResolvedRecipient, BlastWithStats, RecipientWithUser, AudienceFilter } from '@/lib/types/email';
 
 // ============================================================================
@@ -95,11 +95,11 @@ export async function createEmailRecipients(data: NewEmailRecipient[]): Promise<
 
 export async function updateRecipientStatus(
   resendEmailId: string,
-  status: string,
+  status: EmailRecipientStatus,
 ): Promise<void> {
   await db
     .update(emailRecipients)
-    .set({ status: status as any, statusUpdatedAt: new Date() })
+    .set({ status, statusUpdatedAt: new Date() })
     .where(eq(emailRecipients.resendEmailId, resendEmailId));
 }
 
@@ -129,7 +129,7 @@ export async function resolveAudience(filters: AudienceFilter): Promise<Resolved
         sql`${users.email} IS NOT NULL`,
       ];
       if (filters.registrationStatus) {
-        conditions.push(eq(eventRegistrations.status, filters.registrationStatus as any));
+        conditions.push(eq(eventRegistrations.status, filters.registrationStatus as RegistrationStatus));
       }
       return db
         .select({ userId: users.id, email: users.email, name: users.name })

@@ -46,8 +46,8 @@ export function MagicLinkForm() {
       setSentEmail(data.email);
       setEmailSent(true);
       toast.success('Magic link sent!');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to send magic link');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to send magic link');
     } finally {
       setIsLoading(false);
     }

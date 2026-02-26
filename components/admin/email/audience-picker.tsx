@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -121,13 +120,6 @@ export function AudiencePicker({ value, onChange }: AudiencePickerProps) {
     return () => clearTimeout(timeout);
   }, [userSearch, value.type, selectedUsers]);
 
-  // Initialize selectedUsers from filter on mount
-  useEffect(() => {
-    if (value.type === 'manual' && value.userIds.length > 0 && selectedUsers.length === 0) {
-      // We don't have user details from the filter, but IDs are tracked
-      // The count will show correctly from the server action
-    }
-  }, [value.type]);
 
   const handleTypeChange = (type: string) => {
     switch (type) {

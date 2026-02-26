@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Webhook } from 'svix';
 import { updateRecipientStatus } from '@/lib/db/email-queries';
+import type { EmailRecipientStatus } from '@/lib/db/schema';
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
     const { type, data } = payload;
 
     // Map Resend event types to our status
-    const statusMap: Record<string, string> = {
+    const statusMap: Record<string, EmailRecipientStatus> = {
       'email.sent': 'sent',
       'email.delivered': 'delivered',
       'email.delivery_delayed': 'sent',

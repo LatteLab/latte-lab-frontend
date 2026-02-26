@@ -25,6 +25,7 @@ import { getUserById } from '@/lib/db/queries';
 import { createEmailBlastSchema } from '@/lib/validations/email';
 import { renderBlastEmail, resolveMergeFields } from '@/lib/emails/blast-template';
 import type { AudienceFilter } from '@/lib/types/email';
+import type { EmailAudienceType, EmailRecipientStatus } from '@/lib/db/schema';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -50,7 +51,7 @@ export async function saveEmailBlastAction(data: {
       subject: parsed.subject,
       bodyTemplate: parsed.bodyTemplate,
       body: parsed.bodyTemplate, // Will be re-rendered with merge fields at send time
-      audienceType: parsed.audienceType as any,
+      audienceType: parsed.audienceType as EmailAudienceType,
       audienceFilters: filtersJson,
     });
     revalidatePath('/admin/email');
@@ -62,7 +63,7 @@ export async function saveEmailBlastAction(data: {
     subject: parsed.subject,
     body: parsed.bodyTemplate,
     bodyTemplate: parsed.bodyTemplate,
-    audienceType: parsed.audienceType as any,
+    audienceType: parsed.audienceType as EmailAudienceType,
     audienceFilters: filtersJson,
     status: 'draft',
     sentBy: session.user.id,
@@ -169,7 +170,7 @@ export async function sendEmailBlastAction(blastId: string) {
             const resendId = batchResult.data[j].id;
             await db
               .update(emailRecipientsTable)
-              .set({ resendEmailId: resendId, status: 'sent' as any })
+              .set({ resendEmailId: resendId, status: 'sent' as EmailRecipientStatus })
               .where(
                 and(
                   eq(emailRecipientsTable.blastId, blastId),
@@ -186,7 +187,7 @@ export async function sendEmailBlastAction(blastId: string) {
         const failedEmails = chunk.map((r) => r.email!);
         await db
           .update(emailRecipientsTable)
-          .set({ status: 'failed' as any, statusUpdatedAt: new Date() })
+          .set({ status: 'failed' as EmailRecipientStatus, statusUpdatedAt: new Date() })
           .where(
             and(
               eq(emailRecipientsTable.blastId, blastId),

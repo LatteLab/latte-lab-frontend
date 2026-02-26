@@ -12,8 +12,8 @@ export function OAuthButtons() {
     setLoadingProvider(provider);
     try {
       await signIn(provider, { callbackUrl: '/user' });
-    } catch (error: any) {
-      toast.error(error.message || `Failed to sign in with ${provider}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Failed to sign in with ${provider}`);
       setLoadingProvider(null);
     }
   };

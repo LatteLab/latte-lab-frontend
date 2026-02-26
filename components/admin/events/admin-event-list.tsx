@@ -63,7 +63,7 @@ export function AdminEventList({ events }: AdminEventListProps) {
   const [filter, setFilter] = useState<Filter>('upcoming');
   const [search, setSearch] = useState('');
 
-  const now = new Date();
+  const now = useMemo(() => new Date(), []);
 
   const filtered = useMemo(() => {
     const byTime = events.filter((item) =>
@@ -86,7 +86,7 @@ export function AdminEventList({ events }: AdminEventListProps) {
         item.event.name.toLowerCase().includes(q) ||
         (item.event.location?.toLowerCase().includes(q) ?? false)
     );
-  }, [events, filter, search]);
+  }, [events, filter, search, now]);
 
   return (
     <div className="space-y-4">

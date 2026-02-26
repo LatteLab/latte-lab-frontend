@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -51,17 +51,22 @@ export function UserDetailModal({
 }) {
   const [data, setData] = useState<UserDetailData | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [prevOpen, setPrevOpen] = useState(false);
+  const [prevUserId, setPrevUserId] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Derive state from props instead of using useEffect
+  if (open !== prevOpen || userId !== prevUserId) {
+    setPrevOpen(open);
+    setPrevUserId(userId);
     if (open && userId) {
       startTransition(async () => {
         const result = await fetchUserDetail(userId);
         setData(result);
       });
-    } else {
+    } else if (!open) {
       setData(null);
     }
-  }, [open, userId, fetchUserDetail]);
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

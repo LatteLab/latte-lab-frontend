@@ -25,8 +25,8 @@ export function AdminWhitelistManager({
       setWhitelist([data, ...whitelist]);
       setNewEmail("");
       toast.success("Email added to whitelist");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to add email");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to add email");
     } finally {
       setLoading(false);
     }
@@ -37,8 +37,8 @@ export function AdminWhitelistManager({
       await removeAdminEmail(id);
       setWhitelist(whitelist.filter((item) => item.id !== id));
       toast.success("Email removed from whitelist");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to remove email");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove email");
     }
   };
 

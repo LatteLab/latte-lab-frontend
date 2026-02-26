@@ -205,3 +205,8 @@ export type EmailRecipient = typeof emailRecipients.$inferSelect;
 export type NewEmailRecipient = typeof emailRecipients.$inferInsert;
 export type RegistrationAuditLog = typeof registrationAuditLog.$inferSelect;
 export type NewRegistrationAuditLog = typeof registrationAuditLog.$inferInsert;
+
+// Enum value types — use these for typed parameters and casts
+export type RegistrationStatus = (typeof registrationStatusEnum.enumValues)[number];
+export type EmailRecipientStatus = (typeof emailRecipientStatusEnum.enumValues)[number];
+export type EmailAudienceType = (typeof emailAudienceTypeEnum.enumValues)[number];
