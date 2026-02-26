@@ -1,6 +1,6 @@
 import { db } from './index';
 import { events, eventRegistrations, eventAccess, lotteryHistory, users, semesters } from './schema';
-import { eq, and, desc, gte, lt, count, inArray } from 'drizzle-orm';
+import { eq, and, or, desc, gte, lt, count, inArray } from 'drizzle-orm';
 import type { Event, NewEvent, EventRegistration } from './schema';
 import type { RegistrationRow, RegistrationWithStats } from '@/lib/types/event';
 
@@ -29,8 +29,9 @@ export async function getPublishedEvents(filter?: 'upcoming' | 'past') {
 
   if (filter === 'upcoming') {
     baseConditions.push(gte(events.date, now));
+    baseConditions.push(eq(events.status, 'open'));
   } else if (filter === 'past') {
-    baseConditions.push(lt(events.date, now));
+    baseConditions.push(or(lt(events.date, now), inArray(events.status, ['closed', 'completed']))!);
   }
 
   const orderDir = filter === 'past' ? desc(events.date) : events.date;
@@ -348,8 +349,9 @@ export async function getUserEvents(userId: string, filter?: 'upcoming' | 'past'
 
   if (filter === 'upcoming') {
     conditions.push(gte(events.date, now));
+    conditions.push(eq(events.status, 'open'));
   } else if (filter === 'past') {
-    conditions.push(lt(events.date, now));
+    conditions.push(or(lt(events.date, now), inArray(events.status, ['closed', 'completed']))!);
   }
 
   // Subquery: count confirmed registrations per event
@@ -386,8 +388,9 @@ export async function getUserEvents(userId: string, filter?: 'upcoming' | 'past'
 
   if (filter === 'upcoming') {
     accessConditions.push(gte(events.date, now));
+    accessConditions.push(eq(events.status, 'open'));
   } else if (filter === 'past') {
-    accessConditions.push(lt(events.date, now));
+    accessConditions.push(or(lt(events.date, now), inArray(events.status, ['closed', 'completed']))!);
   }
 
   const accessedRows = await db

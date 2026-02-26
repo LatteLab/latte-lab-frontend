@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import { redirect, notFound } from 'next/navigation';
 import { getEventById, getUserRegistration, getEventRegistrations, getRegistrationCount, hasEventAccess } from '@/lib/db/event-queries';
 import { EventRegistrationButton } from '@/components/user/event-registration-button';
+import { PastEventStatusCard } from '@/components/user/past-event-status-card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar, MapPin, Users, Lock, ShieldCheck } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
@@ -54,6 +55,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const spotsRemaining = Math.max(0, event.capacity - confirmedCount);
   const capacityPercent = Math.min(100, Math.round((confirmedCount / event.capacity) * 100));
+  const isPastEvent = new Date(event.endDate ?? event.date) < new Date()
+    || event.status === 'closed' || event.status === 'completed';
 
   // Get confirmed attendees for guest list
   const attendees = registrations.filter(r =>
@@ -146,42 +149,50 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               </div>
 
               {/* Registration container */}
-              <div className="rounded-xl border p-5 space-y-4">
-                <p className="text-sm font-medium text-muted-foreground">Registration</p>
+              {isPastEvent ? (
+                <PastEventStatusCard
+                  registrationStatus={registration?.status ?? null}
+                  userName={session.user.name || ''}
+                  userImage={session.user.image || null}
+                />
+              ) : (
+                <div className="rounded-xl border p-5 space-y-4">
+                  <p className="text-sm font-medium text-muted-foreground">Registration</p>
 
-                {event.requireApproval && (
-                  <div className="flex items-start gap-2.5">
-                    <ShieldCheck className="h-5 w-5 shrink-0 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm font-semibold">Approval Required</p>
-                      <p className="text-xs text-muted-foreground">Your registration is subject to host approval.</p>
+                  {event.requireApproval && (
+                    <div className="flex items-start gap-2.5">
+                      <ShieldCheck className="h-5 w-5 shrink-0 text-muted-foreground mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold">Approval Required</p>
+                        <p className="text-xs text-muted-foreground">Your registration is subject to host approval.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-sm text-muted-foreground">
+                    Welcome! To join the event, please register below.
+                  </p>
+
+                  <div className="flex items-center gap-2.5">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={session.user.image || undefined} />
+                      <AvatarFallback className="text-xs">
+                        {session.user.name?.split(' ').map((n: string) => n[0]).join('') || '?'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="text-sm">
+                      <span className="font-medium">{session.user.name}</span>{' '}
+                      <span className="text-muted-foreground">{session.user.email}</span>
                     </div>
                   </div>
-                )}
 
-                <p className="text-sm text-muted-foreground">
-                  Welcome! To join the event, please register below.
-                </p>
-
-                <div className="flex items-center gap-2.5">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={session.user.image || undefined} />
-                    <AvatarFallback className="text-xs">
-                      {session.user.name?.split(' ').map((n: string) => n[0]).join('') || '?'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="text-sm">
-                    <span className="font-medium">{session.user.name}</span>{' '}
-                    <span className="text-muted-foreground">{session.user.email}</span>
-                  </div>
+                  <EventRegistrationButton
+                    event={event}
+                    registration={registration}
+                    spotsRemaining={spotsRemaining}
+                  />
                 </div>
-
-                <EventRegistrationButton
-                  event={event}
-                  registration={registration}
-                  spotsRemaining={spotsRemaining}
-                />
-              </div>
+              )}
 
               {/* Description */}
               {event.description && (
@@ -219,13 +230,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         </div>
 
         {/* Mobile sticky CTA */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/80 p-4 backdrop-blur-lg md:hidden">
-          <EventRegistrationButton
-            event={event}
-            registration={registration}
-            spotsRemaining={spotsRemaining}
-          />
-        </div>
+        {!isPastEvent && (
+          <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/80 p-4 backdrop-blur-lg md:hidden">
+            <EventRegistrationButton
+              event={event}
+              registration={registration}
+              spotsRemaining={spotsRemaining}
+            />
+          </div>
+        )}
     </div>
   );
 }
