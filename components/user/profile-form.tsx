@@ -8,6 +8,7 @@ import { updateProfile } from '@/app/actions/profile';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 import type { User } from '@/lib/db/schema';
+import { ProfileImageEditor } from '@/components/user/profile-image-editor';
 
 export function ProfileForm({ user }: { user: User }) {
   const [isPending, startTransition] = useTransition();
@@ -25,6 +26,12 @@ export function ProfileForm({ user }: { user: User }) {
 
   return (
     <form action={handleSubmit} className="space-y-6">
+      <ProfileImageEditor
+        userId={user.id}
+        currentImage={user.image}
+        userName={user.name}
+      />
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="major">Major</Label>

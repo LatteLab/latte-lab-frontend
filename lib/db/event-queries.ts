@@ -471,6 +471,7 @@ export async function updateUserProfile(userId: string, data: {
   bio?: string | null;
   location?: string | null;
   semesterStatus?: string | null;
+  image?: string | null;
 }) {
   const [user] = await db.update(users)
     .set({ ...data, updatedAt: new Date() })

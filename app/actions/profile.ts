@@ -3,7 +3,7 @@
 import { auth } from '@/auth';
 import { revalidatePath } from 'next/cache';
 import { updateUserProfile } from '@/lib/db/event-queries';
-import { updateProfileSchema } from '@/lib/validations/profile';
+import { updateProfileSchema, updateProfileImageSchema } from '@/lib/validations/profile';
 
 export async function updateProfile(formData: FormData) {
   const session = await auth();
@@ -18,6 +18,28 @@ export async function updateProfile(formData: FormData) {
   ) as Record<string, string | null>;
 
   await updateUserProfile(session.user.id, data);
+
+  revalidatePath('/user/settings');
+  revalidatePath('/user/directory');
+}
+
+export async function updateProfileImage(imageUrl: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error('Unauthorized');
+
+  updateProfileImageSchema.parse({ imageUrl });
+
+  await updateUserProfile(session.user.id, { image: imageUrl });
+
+  revalidatePath('/user/settings');
+  revalidatePath('/user/directory');
+}
+
+export async function removeProfileImage() {
+  const session = await auth();
+  if (!session?.user) throw new Error('Unauthorized');
+
+  await updateUserProfile(session.user.id, { image: null });
 
   revalidatePath('/user/settings');
   revalidatePath('/user/directory');
