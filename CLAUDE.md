@@ -7,7 +7,7 @@ Latte Lab Frontend - Next.js app for MIT's Latte Lab organization management.
 - Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui
 - Auth: NextAuth v5 (Google OAuth restricted to `mit.edu`)
 - Database: PostgreSQL (Supabase) + Drizzle ORM
-- Storage: Supabase Storage (`event-covers` bucket) via `lib/supabase/client.ts`
+- Storage: Supabase Storage (`event-covers`, `profile-images` buckets) via `lib/supabase/client.ts`
 - Rich text: Tiptap — event descriptions stored as HTML in `description` text column
 - Package manager: pnpm
 
@@ -70,7 +70,7 @@ lib/
 ├── types/                  # Shared TypeScript interfaces (event.ts, email.ts)
 ├── supabase/
 │   ├── client.ts           # Browser Supabase client (anon key)
-│   └── storage.ts          # Upload/delete helpers for event covers
+│   └── storage.ts          # Upload/delete helpers for event covers + profile images
 ├── gradients.ts            # Gradient generation/parsing for event covers
 ├── validations/            # Zod schemas (events.ts, email.ts, profile.ts)
 └── utils.ts                # Utilities (cn helper)
@@ -118,7 +118,8 @@ if (!session?.user) throw new Error("Unauthorized");
 
 ## Gotchas
 
-- Supabase Storage RLS: client uses anon key, so policies must include `anon` role (not just `authenticated`)
+- Supabase Storage RLS: client uses anon key, so policies must include `anon` role (not just `authenticated`). When creating new buckets or tables, always enable RLS and add explicit policies — Supabase disables RLS by default, which means public access to everything.
+- Supabase Storage filenames: when filenames are derived from user data (e.g. userId), include a random token (`{userId}-{uuid}.ext`) to prevent other users from overwriting files via the anon key. For multi-step mutations (upload file + update DB), update the DB first — a broken DB reference is worse than an orphaned storage file.
 - `redirect()` in server actions throws internally (NEXT_REDIRECT). Never wrap server action calls that use `redirect()` in try/catch — it catches the redirect as an error. If you need a toast + navigation after a mutation, skip `redirect()` in the action and use `router.push()` client-side instead.
 - `pnpm db:push` may conflict when multiple worktrees target the same Supabase DB. For schema changes from a non-primary worktree, apply SQL directly via Supabase MCP (`apply_migration` or `execute_sql`).
 - Mobile-first: most users access on mobile. Always test layouts in narrow viewports. When reusing components in constrained containers (Sheets, modals, popovers), pass a `compact` prop to adapt layout — don't assume the full-page grid will fit.
