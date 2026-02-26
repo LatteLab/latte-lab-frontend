@@ -24,3 +24,13 @@ This document tracks outstanding tasks for the Latte Lab frontend application.
 - [ ] **Mutuals** — Show which friends/members have attended the same events (inspired by Partiful)
 - [ ] **Sticky dates on timeline** — Sticky date headers that pin while scrolling through the event timeline
 - [ ] **Cached results for data fetching** — Add `use cache` / `unstable_cache` for events and member queries (N+1 query already optimized, caching deferred until app-wide Suspense migration)
+
+---
+
+## 3. Production
+
+- [ ] **Domain swapping for main site** — Point production domain to the deployed app
+- [ ] **Landing page with login** — Create a public landing page, possibly mapping login to the existing auth flow
+- [ ] **Preload Spring 2026 signups** — Import Spring 2026 Latte Lab signups into an interests form
+- [ ] **Manual testing by Latte Lab team** — End-to-end testing by team members before production launch
+- [ ] **Integrate web analytics tracker / error notifications** possibly --> posthog, sentry, maybe something simpler
