@@ -4,16 +4,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 import { updateProfile } from '@/app/actions/profile';
-import { useTransition } from 'react';
+import { useTransition, useState } from 'react';
 import { toast } from 'sonner';
 import type { User } from '@/lib/db/schema';
 import { ProfileImageEditor } from '@/components/user/profile-image-editor';
 
 export function ProfileForm({ user }: { user: User }) {
   const [isPending, startTransition] = useTransition();
+  const [isVisibleInDirectory, setIsVisibleInDirectory] = useState(user.isVisibleInDirectory ?? true);
+  const [hidePhone, setHidePhone] = useState(user.hidePhone ?? false);
 
-  const handleSubmit = (formData: FormData) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    // Booleans: server action uses formData.has() to detect presence
+    if (isVisibleInDirectory) formData.set('isVisibleInDirectory', 'on');
+    else formData.delete('isVisibleInDirectory');
+    if (hidePhone) formData.set('hidePhone', 'on');
+    else formData.delete('hidePhone');
+
     startTransition(async () => {
       try {
         await updateProfile(formData);
@@ -25,7 +37,7 @@ export function ProfileForm({ user }: { user: User }) {
   };
 
   return (
-    <form action={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <ProfileImageEditor
         userId={user.id}
         currentImage={user.image}
@@ -59,6 +71,34 @@ export function ProfileForm({ user }: { user: User }) {
       <div className="space-y-2">
         <Label htmlFor="bio">Bio</Label>
         <Textarea id="bio" name="bio" defaultValue={user.bio || ''} placeholder="Tell us about yourself..." rows={4} />
+      </div>
+
+      <Separator />
+
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold">Privacy</h3>
+        <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="space-y-0.5">
+            <Label htmlFor="isVisibleInDirectory" className="text-sm font-medium cursor-pointer">Show me in member directory</Label>
+            <p className="text-xs text-muted-foreground">Other members can find and view your profile</p>
+          </div>
+          <Switch
+            id="isVisibleInDirectory"
+            checked={isVisibleInDirectory}
+            onCheckedChange={setIsVisibleInDirectory}
+          />
+        </div>
+        <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="space-y-0.5">
+            <Label htmlFor="hidePhone" className="text-sm font-medium cursor-pointer">Hide my phone number</Label>
+            <p className="text-xs text-muted-foreground">Your phone won&apos;t be shown on your profile</p>
+          </div>
+          <Switch
+            id="hidePhone"
+            checked={hidePhone}
+            onCheckedChange={setHidePhone}
+          />
+        </div>
       </div>
 
       <Button type="submit" disabled={isPending}>

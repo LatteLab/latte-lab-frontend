@@ -1,6 +1,6 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
-import { getAllMembers } from '@/lib/db/event-queries';
+import { getDirectoryList } from '@/lib/db/event-queries';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 
@@ -8,7 +8,7 @@ export default async function DirectoryPage() {
   const session = await auth();
   if (!session?.user) redirect('/login');
 
-  const members = await getAllMembers();
+  const members = await getDirectoryList();
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -28,7 +28,7 @@ export default async function DirectoryPage() {
                     <p className="font-medium truncate">{member.name || 'Unknown'}</p>
                     <p className="text-sm text-muted-foreground truncate">
                       {[member.classYear && `Class of ${member.classYear}`, member.major]
-                        .filter(Boolean).join(' · ') || member.email}
+                        .filter(Boolean).join(' · ') || 'Latte Lab Member'}
                     </p>
                   </div>
                 </div>

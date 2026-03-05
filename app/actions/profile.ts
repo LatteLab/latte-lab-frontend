@@ -9,13 +9,18 @@ export async function updateProfile(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error('Unauthorized');
 
-  const raw = Object.fromEntries(formData);
+  // Coerce checkboxes: present = true, absent = false
+  const raw = {
+    ...Object.fromEntries(formData),
+    isVisibleInDirectory: formData.has('isVisibleInDirectory'),
+    hidePhone: formData.has('hidePhone'),
+  };
   const parsed = updateProfileSchema.parse(raw);
 
-  // Convert empty strings to null for database
+  // Convert empty strings to null for string fields
   const data = Object.fromEntries(
     Object.entries(parsed).map(([key, value]) => [key, value === '' ? null : value])
-  ) as Record<string, string | null>;
+  ) as Record<string, string | boolean | null>;
 
   await updateUserProfile(session.user.id, data);
 

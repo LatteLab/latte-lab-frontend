@@ -11,7 +11,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
 
   const { id } = await params;
   const user = await getUserById(id);
-  if (!user) notFound();
+  if (!user || !user.isVisibleInDirectory) notFound();
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -56,7 +56,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">{user.email}</span>
                 </div>
-                {user.phone && (
+                {user.phone && !user.hidePhone && (
                   <div className="flex items-center gap-3">
                     <Phone className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">{user.phone}</span>

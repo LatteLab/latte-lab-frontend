@@ -34,6 +34,8 @@ export const users = pgTable('users', {
   semesterStatus: text('semester_status'),
   bio: text('bio'),
   location: text('location'),
+  isVisibleInDirectory: boolean('is_visible_in_directory').notNull().default(true),
+  hidePhone: boolean('hide_phone').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import DOMPurify from "isomorphic-dompurify";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -212,7 +213,7 @@ export function EventOverview({
           </h3>
           <div
             className="prose prose-sm max-w-none text-sm text-muted-foreground"
-            dangerouslySetInnerHTML={{ __html: event.description }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(event.description) }}
           />
         </div>
       )}

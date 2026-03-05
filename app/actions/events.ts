@@ -27,6 +27,8 @@ import {
   createAuditLogEntries,
   getRegistrationAuditLog as dbGetRegistrationAuditLog,
   deleteLotteryWins,
+  createRegistrationWithCapacityCheck,
+  claimLotteryDraftSlot,
 } from '@/lib/db/event-queries';
 import { getUserById } from '@/lib/db/queries';
 import { createEventSchema, updateEventSchema } from '@/lib/validations/events';
@@ -45,7 +47,7 @@ export async function createEventAction(formData: FormData) {
 
   // Auto-generate invite code for private events
   const inviteCode = parsed.visibility === 'private'
-    ? crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+    ? Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString('base64url')
     : null;
 
   const event = await dbCreateEvent({
@@ -80,7 +82,7 @@ export async function updateEventAction(eventId: string, formData: FormData) {
   if (parsed.visibility === 'private') {
     const existing = await getEventById(eventId);
     if (!existing?.inviteCode) {
-      inviteCode = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+      inviteCode = Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString('base64url');
     }
   } else if (parsed.visibility === 'public') {
     // Keep invite code even when going public (existing links still work)
@@ -141,44 +143,26 @@ export async function registerForEvent(eventId: string) {
     return;
   }
 
-  // FCFS registration
-  const confirmedCount = await getRegistrationCount(eventId, ['registered', 'checked_in']);
+  // FCFS registration — atomic to prevent over-capacity under concurrent load
+  const result = await createRegistrationWithCapacityCheck({
+    userId: session.user.id,
+    eventId,
+    capacity: event.capacity,
+    waitlistEnabled: event.waitlistEnabled,
+  });
 
-  if (confirmedCount < event.capacity) {
-    const reg = await createRegistration({
-      userId: session.user.id,
-      eventId,
-      status: 'registered',
-    });
-    await createAuditLogEntry({
-      registrationId: reg.id,
-      eventId,
-      userId: session.user.id,
-      oldStatus: null,
-      newStatus: 'registered',
-      action: 'registered',
-      actorId: null,
-      actorType: 'user',
-    });
-  } else if (event.waitlistEnabled) {
-    const reg = await createRegistration({
-      userId: session.user.id,
-      eventId,
-      status: 'waitlisted',
-    });
-    await createAuditLogEntry({
-      registrationId: reg.id,
-      eventId,
-      userId: session.user.id,
-      oldStatus: null,
-      newStatus: 'waitlisted',
-      action: 'registered',
-      actorId: null,
-      actorType: 'user',
-    });
-  } else {
-    throw new Error('Event is full');
-  }
+  if (!result) throw new Error('Event is full');
+
+  await createAuditLogEntry({
+    registrationId: result.reg.id,
+    eventId,
+    userId: session.user.id,
+    oldStatus: null,
+    newStatus: result.wasWaitlisted ? 'waitlisted' : 'registered',
+    action: 'registered',
+    actorId: null,
+    actorType: 'user',
+  });
 
   revalidatePath(`/user/events/${eventId}`);
   revalidatePath(`/admin/events/${eventId}`);
@@ -265,46 +249,59 @@ export async function runLotteryDraft(eventId: string) {
 
   const event = await getEventById(eventId);
   if (!event || !event.requireApproval) throw new Error('Lottery only available for approval-required events');
-  if (event.lotteryStatus === 'draft') throw new Error('A lottery draft is already in progress');
+  if (event.lotteryStatus === 'finalized') throw new Error('Lottery has already been finalized');
 
-  const regs = await getEventRegistrations(eventId);
-  const entrants = regs.filter(r => r.registration.status === 'pending_approval');
+  // Atomically claim the draft slot — prevents two admins from running the lottery simultaneously.
+  // claimLotteryDraftSlot does UPDATE ... WHERE lottery_status IS NULL, which is atomic in PostgreSQL.
+  const claimed = await claimLotteryDraftSlot(eventId);
+  if (!claimed) throw new Error('A lottery draft is already in progress');
 
-  if (entrants.length === 0) throw new Error('No pending requests');
+  try {
+    const regs = await getEventRegistrations(eventId);
+    const entrants = regs.filter(r => r.registration.status === 'pending_approval');
 
-  const scored = await Promise.all(
-    entrants.map(async (entry) => {
-      const score = await computePriorityScore(entry.user.id);
-      return { ...entry, score };
-    })
-  );
+    if (entrants.length === 0) {
+      // Reset so admins can retry after adding registrations
+      await dbUpdateEvent(eventId, { lotteryStatus: null });
+      throw new Error('No pending requests');
+    }
 
-  const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
-  const spots = Math.max(0, event.capacity - confirmedCount);
-  const pool = [...scored];
-  const selected = weightedSelect(pool, spots);
+    const scored = await Promise.all(
+      entrants.map(async (entry) => {
+        const score = await computePriorityScore(entry.user.id);
+        return { ...entry, score };
+      })
+    );
 
-  const selectedIds = new Set(selected.map(s => s.registration.id));
+    const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
+    const spots = Math.max(0, event.capacity - confirmedCount);
+    const pool = [...scored];
+    const selected = weightedSelect(pool, spots);
 
-  await Promise.all(
-    scored.map(async (entry) => {
-      const isSelected = selectedIds.has(entry.registration.id);
-      await updateRegistration(entry.registration.id, {
-        status: isSelected ? 'draft_selected' : 'draft_rejected',
-        lotteryPriorityScore: entry.score,
-      });
-    })
-  );
+    const selectedIds = new Set(selected.map(s => s.registration.id));
 
-  await dbUpdateEvent(eventId, { lotteryStatus: 'draft' });
+    await Promise.all(
+      scored.map(async (entry) => {
+        const isSelected = selectedIds.has(entry.registration.id);
+        await updateRegistration(entry.registration.id, {
+          status: isSelected ? 'draft_selected' : 'draft_rejected',
+          lotteryPriorityScore: entry.score,
+        });
+      })
+    );
 
-  revalidatePath(`/admin/events/${eventId}`);
-  revalidatePath(`/user/events/${eventId}`);
+    revalidatePath(`/admin/events/${eventId}`);
+    revalidatePath(`/user/events/${eventId}`);
 
-  return {
-    selected: selected.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
-    rejected: pool.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
-  };
+    return {
+      selected: selected.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
+      rejected: pool.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
+    };
+  } catch (error) {
+    // Reset lotteryStatus so admins can retry after a transient failure
+    await dbUpdateEvent(eventId, { lotteryStatus: null });
+    throw error;
+  }
 }
 
 export async function removeDraftSelected(registrationId: string, eventId: string) {
@@ -743,7 +740,7 @@ export async function regenerateInviteCode(eventId: string) {
     throw new Error('Can only regenerate invite codes for private events');
   }
 
-  const newCode = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  const newCode = Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString('base64url');
   await dbUpdateEvent(eventId, { inviteCode: newCode });
 
   revalidatePath(`/admin/events/${eventId}`);
