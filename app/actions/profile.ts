@@ -17,10 +17,15 @@ export async function updateProfile(formData: FormData) {
   };
   const parsed = updateProfileSchema.parse(raw);
 
-  // Convert empty strings to null for string fields
-  const data = Object.fromEntries(
-    Object.entries(parsed).map(([key, value]) => [key, value === '' ? null : value])
-  ) as Record<string, string | boolean | null>;
+  // Convert empty strings to null for string fields, preserve booleans as-is
+  const data: Parameters<typeof updateUserProfile>[1] = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value === 'boolean') {
+      (data as Record<string, unknown>)[key] = value;
+    } else {
+      (data as Record<string, unknown>)[key] = value === '' ? null : value;
+    }
+  }
 
   await updateUserProfile(session.user.id, data);
 

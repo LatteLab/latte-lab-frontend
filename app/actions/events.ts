@@ -298,8 +298,21 @@ export async function runLotteryDraft(eventId: string) {
       rejected: pool.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
     };
   } catch (error) {
-    // Reset lotteryStatus so admins can retry after a transient failure
-    await dbUpdateEvent(eventId, { lotteryStatus: null });
+    // Reset lotteryStatus and any draft registration statuses so admins can retry.
+    // Mirrors discardLotteryDraft: draft_selected/draft_rejected → pending_approval.
+    const draftRegs = await getEventRegistrations(eventId);
+    const draftEntrants = draftRegs.filter(r =>
+      r.registration.status === 'draft_selected' || r.registration.status === 'draft_rejected'
+    );
+    await Promise.all([
+      ...draftEntrants.map(r =>
+        updateRegistration(r.registration.id, {
+          status: 'pending_approval',
+          lotteryPriorityScore: null,
+        })
+      ),
+      dbUpdateEvent(eventId, { lotteryStatus: null }),
+    ]);
     throw error;
   }
 }

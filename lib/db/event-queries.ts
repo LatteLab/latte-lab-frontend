@@ -533,6 +533,8 @@ export async function updateUserProfile(userId: string, data: {
   location?: string | null;
   semesterStatus?: string | null;
   image?: string | null;
+  isVisibleInDirectory?: boolean;
+  hidePhone?: boolean;
 }) {
   const [user] = await db.update(users)
     .set({ ...data, updatedAt: new Date() })
