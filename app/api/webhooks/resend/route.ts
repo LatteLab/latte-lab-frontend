@@ -15,8 +15,8 @@ export async function POST(req: NextRequest) {
 
     const secret = process.env.RESEND_WEBHOOK_SECRET;
     if (!secret) {
-      console.error('RESEND_WEBHOOK_SECRET not configured');
-      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
+      console.error('[webhook/resend] Missing required environment configuration');
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 
     // Verify Svix signature — must use raw body text

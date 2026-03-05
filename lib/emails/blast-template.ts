@@ -1,8 +1,20 @@
+import DOMPurify from 'isomorphic-dompurify';
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /**
  * Wraps admin-authored HTML content in a branded Latte Lab email layout.
  * Returns a complete HTML email string ready to send via Resend.
  */
 export function renderBlastEmail(content: string): string {
+  const sanitized = DOMPurify.sanitize(content);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -24,7 +36,7 @@ export function renderBlastEmail(content: string): string {
           <!-- Body -->
           <tr>
             <td style="padding:32px;font-size:15px;line-height:1.6;color:#27272a;">
-              ${content}
+              ${sanitized}
             </td>
           </tr>
           <!-- Footer -->
@@ -51,8 +63,8 @@ export function resolveMergeFields(
   data: { firstName?: string; lastName?: string; eventName?: string },
 ): string {
   return html
-    .replace(/\{\{firstName\}\}/g, data.firstName || 'Member')
-    .replace(/\{\{lastName\}\}/g, data.lastName || '')
-    .replace(/\{\{eventName\}\}/g, data.eventName || '')
+    .replace(/\{\{firstName\}\}/g, escapeHtml(data.firstName || 'Member'))
+    .replace(/\{\{lastName\}\}/g, escapeHtml(data.lastName || ''))
+    .replace(/\{\{eventName\}\}/g, escapeHtml(data.eventName || ''))
     .replace(/\{\{[^}]+\}\}/g, ''); // Strip unknown merge fields
 }

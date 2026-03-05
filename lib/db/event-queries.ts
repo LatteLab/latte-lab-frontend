@@ -1,6 +1,6 @@
 import { db } from './index';
 import { events, eventRegistrations, eventAccess, lotteryHistory, users, semesters, registrationAuditLog } from './schema';
-import { eq, and, or, desc, gte, lt, count, inArray } from 'drizzle-orm';
+import { eq, and, or, desc, gte, lt, count, inArray, isNull, sql } from 'drizzle-orm';
 import type { Event, NewEvent, EventRegistration, NewRegistrationAuditLog } from './schema';
 import type { RegistrationRow, RegistrationWithStats } from '@/lib/types/event';
 
@@ -211,6 +211,56 @@ export async function createRegistration(data: { userId: string; eventId: string
     .values(data)
     .returning();
   return reg;
+}
+
+// Atomically register a user for an event, respecting capacity limits.
+// Uses a transaction with SELECT FOR UPDATE on the event row to prevent
+// over-capacity registrations under concurrent load.
+// Returns the created registration and whether the user was waitlisted,
+// or null if the event is full with no waitlist.
+export async function createRegistrationWithCapacityCheck(data: {
+  userId: string;
+  eventId: string;
+  capacity: number;
+  waitlistEnabled: boolean;
+}): Promise<{ reg: EventRegistration; wasWaitlisted: boolean } | null> {
+  return db.transaction(async (tx) => {
+    // Row-level lock on the event serializes concurrent registration attempts
+    await tx.execute(sql`SELECT id FROM events WHERE id = ${data.eventId} FOR UPDATE`);
+
+    const [{ currentCount }] = await tx
+      .select({ currentCount: count() })
+      .from(eventRegistrations)
+      .where(and(
+        eq(eventRegistrations.eventId, data.eventId),
+        inArray(eventRegistrations.status, ['registered', 'checked_in']),
+      ));
+
+    if (currentCount < data.capacity) {
+      const [reg] = await tx.insert(eventRegistrations)
+        .values({ userId: data.userId, eventId: data.eventId, status: 'registered' })
+        .returning();
+      return { reg, wasWaitlisted: false };
+    } else if (data.waitlistEnabled) {
+      const [reg] = await tx.insert(eventRegistrations)
+        .values({ userId: data.userId, eventId: data.eventId, status: 'waitlisted' })
+        .returning();
+      return { reg, wasWaitlisted: true };
+    } else {
+      return null;
+    }
+  });
+}
+
+// Atomically claim the lottery draft slot for an event.
+// Uses a conditional UPDATE so only one concurrent caller can proceed.
+// Returns true if this caller successfully claimed the slot.
+export async function claimLotteryDraftSlot(eventId: string): Promise<boolean> {
+  const [claimed] = await db.update(events)
+    .set({ lotteryStatus: 'draft' })
+    .where(and(eq(events.id, eventId), isNull(events.lotteryStatus)))
+    .returning({ id: events.id });
+  return !!claimed;
 }
 
 export async function updateRegistration(id: string, data: Partial<EventRegistration>) {
@@ -483,6 +533,8 @@ export async function updateUserProfile(userId: string, data: {
   location?: string | null;
   semesterStatus?: string | null;
   image?: string | null;
+  isVisibleInDirectory?: boolean;
+  hidePhone?: boolean;
 }) {
   const [user] = await db.update(users)
     .set({ ...data, updatedAt: new Date() })
@@ -504,8 +556,25 @@ export async function getAllMembers() {
     bio: users.bio,
     location: users.location,
     semesterStatus: users.semesterStatus,
+    isVisibleInDirectory: users.isVisibleInDirectory,
+    hidePhone: users.hidePhone,
   })
     .from(users)
+    .orderBy(users.name);
+}
+
+// Minimal query for member directory list — no PII beyond name/image/major/classYear
+export async function getDirectoryList() {
+  return db.select({
+    id: users.id,
+    name: users.name,
+    image: users.image,
+    major: users.major,
+    classYear: users.classYear,
+    semesterStatus: users.semesterStatus,
+  })
+    .from(users)
+    .where(eq(users.isVisibleInDirectory, true))
     .orderBy(users.name);
 }
 

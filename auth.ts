@@ -51,8 +51,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   callbacks: {
     async jwt({ token, user }) {
-      if (user?.email) {
-        token.isAdmin = await isAdmin(user.email);
+      // Re-validate admin status on every token refresh, not just at login.
+      // This ensures revoked admins lose access immediately rather than at JWT expiry.
+      const email = (user?.email ?? token.email) as string | undefined;
+      if (email) {
+        token.isAdmin = await isAdmin(email);
       }
       return token;
     },

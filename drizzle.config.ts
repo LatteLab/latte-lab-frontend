@@ -1,4 +1,3 @@
-// @ts-expect-error -- @next/env is available at runtime via next
 import { loadEnvConfig } from '@next/env';
 import { defineConfig } from 'drizzle-kit';
 
