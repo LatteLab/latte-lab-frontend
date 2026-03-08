@@ -5,7 +5,7 @@ import Resend from 'next-auth/providers/resend';
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import { db } from '@/lib/db';
 import { users, accounts, verificationTokens } from '@/lib/db/schema';
-import { isAdmin, applyProfileSeed } from '@/lib/db/queries';
+import { isAdmin, isProfileComplete, applyProfileSeed } from '@/lib/db/queries';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: DrizzleAdapter(db, {
@@ -57,14 +57,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!email) return token;
 
       // Run isAdmin and (on first login) applyProfileSeed in parallel — they're independent.
+      const userId = (user?.id ?? token.sub) as string | undefined;
       const seedPromise = user?.id
         ? applyProfileSeed(user.id, email).catch(err =>
             console.error('[auth] applyProfileSeed failed:', err)
           )
         : Promise.resolve();
 
-      const [isAdminResult] = await Promise.all([isAdmin(email), seedPromise]);
+      const profilePromise = userId
+        ? isProfileComplete(userId)
+        : Promise.resolve(true);
+
+      const [isAdminResult, profileComplete] = await Promise.all([
+        isAdmin(email),
+        profilePromise,
+        seedPromise,
+      ]);
       token.isAdmin = isAdminResult;
+      token.profileComplete = profileComplete;
       return token;
     },
 
@@ -72,6 +82,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user && token) {
         session.user.id = token.sub as string;
         session.user.isAdmin = token.isAdmin as boolean;
+        session.user.profileComplete = (token.profileComplete as boolean) ?? true;
       }
       return session;
     },

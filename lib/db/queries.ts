@@ -21,6 +21,20 @@ export async function isAdmin(email: string): Promise<boolean> {
 }
 
 /**
+ * Check if a user has completed their profile (major, classYear, and interests all set).
+ */
+export async function isProfileComplete(userId: string): Promise<boolean> {
+  const [user] = await db
+    .select({ major: users.major, classYear: users.classYear, interests: users.interests })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user) return true;
+  return !!(user.major && user.classYear && user.interests);
+}
+
+/**
  * Get all admin whitelist entries
  */
 export async function getAdminWhitelist(): Promise<AdminWhitelist[]> {

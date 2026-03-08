@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   const user = await getUserById(session.user.id);
   if (!user) redirect('/login');
 
-  const showWelcome = !user.major && !user.classYear && !user.interests;
+  const showWelcome = !user.major || !user.classYear || !user.interests;
 
   return (
     <div className="flex-1 overflow-y-auto">

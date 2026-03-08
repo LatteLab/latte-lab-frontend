@@ -2,6 +2,7 @@
 
 import { auth } from '@/auth';
 import { revalidatePath } from 'next/cache';
+import { getUserById } from '@/lib/db/queries';
 import { updateUserProfile } from '@/lib/db/event-queries';
 import { updateProfileSchema, updateProfileImageSchema } from '@/lib/validations/profile';
 
@@ -21,6 +22,17 @@ export async function updateProfile(formData: FormData) {
   const data = Object.fromEntries(
     Object.entries(parsed).map(([key, value]) => [key, value === '' ? null : value])
   ) as Record<string, string | boolean | null>;
+
+  // Prevent clearing fields that already have values
+  const current = await getUserById(session.user.id);
+  if (current) {
+    const protectedFields = ['major', 'classYear', 'phone', 'interests', 'bio', 'location'] as const;
+    for (const field of protectedFields) {
+      if (current[field] && (data[field] === null || data[field] === undefined)) {
+        data[field] = current[field];
+      }
+    }
+  }
 
   await updateUserProfile(session.user.id, data);
 
