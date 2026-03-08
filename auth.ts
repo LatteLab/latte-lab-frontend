@@ -5,7 +5,7 @@ import Resend from 'next-auth/providers/resend';
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import { db } from '@/lib/db';
 import { users, accounts, verificationTokens } from '@/lib/db/schema';
-import { isAdmin } from '@/lib/db/queries';
+import { isAdmin, applyProfileSeed } from '@/lib/db/queries';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: DrizzleAdapter(db, {
@@ -54,9 +54,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Re-validate admin status on every token refresh, not just at login.
       // This ensures revoked admins lose access immediately rather than at JWT expiry.
       const email = (user?.email ?? token.email) as string | undefined;
-      if (email) {
-        token.isAdmin = await isAdmin(email);
-      }
+      if (!email) return token;
+
+      // Run isAdmin and (on first login) applyProfileSeed in parallel — they're independent.
+      const seedPromise = user?.id
+        ? applyProfileSeed(user.id, email).catch(err =>
+            console.error('[auth] applyProfileSeed failed:', err)
+          )
+        : Promise.resolve();
+
+      const [isAdminResult] = await Promise.all([isAdmin(email), seedPromise]);
+      token.isAdmin = isAdminResult;
       return token;
     },
 
