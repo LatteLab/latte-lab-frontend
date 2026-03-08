@@ -1,6 +1,6 @@
 import { db } from './index';
 import { adminWhitelist, users } from './schema';
-import { eq, gte, desc } from 'drizzle-orm';
+import { eq, gte, desc, sql } from 'drizzle-orm';
 import type { AdminWhitelist, User, NewUser } from './schema';
 
 // ============================================================================
@@ -129,6 +129,44 @@ export async function getUsersFromLastDays(days: number): Promise<User[]> {
     .select()
     .from(users)
     .where(gte(users.createdAt, cutoffDate));
+}
+
+// ============================================================================
+// Profile Seed
+// ============================================================================
+
+/**
+ * On first login, apply pre-seeded profile data from the profile_seed table.
+ * Populates only null fields so it never overwrites data the user has set.
+ * Deletes the seed row after applying (self-cleaning).
+ */
+export async function applyProfileSeed(userId: string, email: string): Promise<void> {
+  let rows: Awaited<ReturnType<typeof db.execute>>;
+  try {
+    rows = await db.execute(
+      sql`SELECT name, major, class_year, interests FROM profile_seed WHERE email = ${email.toLowerCase()} LIMIT 1`
+    );
+  } catch (err) {
+    // Postgres error 42P01 = "undefined_table" — import script hasn't been run yet. Ignore silently.
+    if ((err as { code?: string })?.code === '42P01') return;
+    throw err;
+  }
+  if (!rows.length) return;
+  const seed = rows[0] as Record<string, string | null>;
+
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) return;
+
+  const updates: Partial<typeof users.$inferInsert> = {};
+  if (!user.name && seed.name) updates.name = seed.name;
+  if (!user.major && seed.major) updates.major = seed.major;
+  if (!user.classYear && seed.class_year) updates.classYear = seed.class_year;
+  if (!user.interests && seed.interests) updates.interests = seed.interests;
+
+  if (Object.keys(updates).length > 0) {
+    await db.update(users).set({ ...updates, updatedAt: new Date() }).where(eq(users.id, userId));
+  }
+  await db.execute(sql`DELETE FROM profile_seed WHERE email = ${email.toLowerCase()}`);
 }
 
 /**
