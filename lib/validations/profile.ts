@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const updateProfileSchema = z.object({
   major: z.string().max(100).optional().or(z.literal('')),
-  classYear: z.string().regex(/^\d{4}$/, 'Class year must be a 4-digit year').optional().or(z.literal('')),
+  classYear: z.string().max(50).optional().or(z.literal('')),
   phone: z.string().max(20).regex(/^[+\d\s\-(). ]*$/, 'Invalid phone number format').optional().or(z.literal('')),
   interests: z.string().max(300, 'Interests must be 300 characters or less').optional().or(z.literal('')),
   bio: z.string().max(500, 'Bio must be 500 characters or less').optional().or(z.literal('')),

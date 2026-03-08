@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, Compass, Users, Coffee, Search, Bell, Settings, Shield, LogOut } from 'lucide-react';
+import { Calendar, Compass, Users, Coffee, Search, Bell, Settings, Shield, LogOut, UserPen } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
@@ -14,6 +14,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import {
   Tooltip,
   TooltipContent,
@@ -100,20 +105,41 @@ export function TopNav() {
               <TooltipContent>Coming soon</TooltipContent>
             </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Popover>
+              <PopoverTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-lg text-stone-400 hover:bg-stone-100/70 hover:text-stone-600 dark:text-stone-500 dark:hover:bg-white/5"
-                  disabled
+                  className="relative h-8 w-8 rounded-lg text-stone-400 hover:bg-stone-100/70 hover:text-stone-600 dark:text-stone-500 dark:hover:bg-white/5"
                 >
                   <Bell className="h-[15px] w-[15px]" strokeWidth={2} />
+                  {!session?.user?.profileComplete && (
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-500" />
+                  )}
                   <span className="sr-only">Notifications</span>
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>Coming soon</TooltipContent>
-            </Tooltip>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 p-0">
+                <div className="border-b px-4 py-3">
+                  <p className="text-sm font-medium">Notifications</p>
+                </div>
+                {!session?.user?.profileComplete ? (
+                  <Link href="/user/settings" className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/50">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+                      <UserPen className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Complete your profile</p>
+                      <p className="text-xs text-muted-foreground">Fill in your details so other members can find you in the directory.</p>
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    No notifications
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
 
             <div className="ml-1.5 h-5 w-px bg-stone-200/70 dark:bg-white/10" />
 

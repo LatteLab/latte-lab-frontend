@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getDirectoryList } from '@/lib/db/event-queries';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
+import { formatYearLabel } from '@/lib/utils';
 
 export default async function DirectoryPage() {
   const session = await auth();
@@ -27,7 +28,7 @@ export default async function DirectoryPage() {
                   <div className="min-w-0 flex-1">
                     <p className="font-medium truncate">{member.name || 'Unknown'}</p>
                     <p className="text-sm text-muted-foreground truncate">
-                      {[member.classYear && `Class of ${member.classYear}`, member.major]
+                      {[member.classYear && formatYearLabel(member.classYear), member.major]
                         .filter(Boolean).join(' · ') || 'Latte Lab Member'}
                     </p>
                   </div>
