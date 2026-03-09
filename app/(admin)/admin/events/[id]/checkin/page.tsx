@@ -26,6 +26,7 @@ export default async function CheckinPage({
         eventName={event.name}
         eventDate={event.date}
         eventStatus={event.status}
+        questions={event.questions ?? null}
       />
     </div>
   );
