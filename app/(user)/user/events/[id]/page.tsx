@@ -43,8 +43,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const event = await getEventById(id);
   if (!event) notFound();
 
-  // Access check for private events
-  if (event.visibility === 'private') {
+  // Access check for private events (admins bypass)
+  if (event.visibility === 'private' && !session.user.isAdmin) {
     const access = await hasEventAccess(session.user.id, id);
     if (!access) notFound();
   }
