@@ -24,15 +24,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { StatusChangeDialog } from '@/components/admin/events/status-change-dialog';
 import {
-  Users, XCircle, Trophy, BarChart3,
+  Users, XCircle, Trophy, BarChart3, Link2,
   UserPlus, CheckCircle, ClipboardCheck,
-  AlertTriangle, ArrowRight, Trash2, Pencil, ExternalLink,
+  AlertTriangle, ArrowRight, Trash2, Pencil, ExternalLink, Check,
 } from 'lucide-react';
 import { getRegistrationTimeline, getUserDetailForModal, removeRegistration } from '@/app/actions/events';
 import { statusColors, statusLabels } from '@/lib/types/event';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import type { Registration } from '@/lib/types/event';
+import type { Registration, EventQuestion } from '@/lib/types/event';
 
 // Timeline entry from the audit log query
 interface TimelineEntry {
@@ -152,9 +152,17 @@ function formatDateTime(date: Date): string {
   });
 }
 
+export interface PairingInfo {
+  partnerName: string | null;
+  partnerImage: string | null;
+  isInviter: boolean;
+}
+
 interface GuestDetailSheetProps {
   registration: Registration | null;
   eventId: string;
+  questions: EventQuestion[] | null;
+  pairing: PairingInfo | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -162,6 +170,8 @@ interface GuestDetailSheetProps {
 export function GuestDetailSheet({
   registration,
   eventId,
+  questions,
+  pairing,
   open,
   onOpenChange,
 }: GuestDetailSheetProps) {
@@ -227,12 +237,6 @@ export function GuestDetailSheet({
             <SheetTitle>Guest Details</SheetTitle>
           </SheetHeader>
 
-          {isPending && !detail && (
-            <div className="flex items-center justify-center py-12">
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            </div>
-          )}
-
           {reg && user && (
             <div className="mt-4 px-6 pb-8">
               {/* Header: Avatar + Name + Status Badge */}
@@ -274,6 +278,58 @@ export function GuestDetailSheet({
                   {formatDateTime(reg.registration.createdAt)}
                 </p>
               </div>
+
+              {/* Registration Answers */}
+              {questions && questions.length > 0 && reg.registration.questionnaireAnswers && (
+                <div className="mt-6 border-t pt-6">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">Registration Answers</p>
+                  <div className="space-y-2">
+                    {questions.map((q) => {
+                      const answer = reg.registration.questionnaireAnswers?.[q.id];
+                      if (q.type === 'consent') {
+                        const yes = answer === true;
+                        return (
+                          <div key={q.id} className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground shrink-0 mr-4 max-w-[60%] leading-snug">{q.label}</span>
+                            <span className={`flex items-center gap-1 font-medium shrink-0 ${yes ? 'text-green-600' : 'text-muted-foreground'}`}>
+                              {yes ? (
+                                <><Check className="h-3.5 w-3.5" /> Yes</>
+                              ) : (
+                                <><XCircle className="h-3.5 w-3.5" /> No</>
+                              )}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={q.id} className="flex items-start justify-between text-sm gap-4">
+                          <span className="text-muted-foreground shrink-0 max-w-[60%] leading-snug">{q.label}</span>
+                          <span className="text-right font-medium break-words min-w-0">{(answer as string) || 'None provided'}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Paired With */}
+              {pairing && (
+                <div className="mt-6 border-t pt-6">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">
+                    {pairing.isInviter ? 'Paired With (+1)' : 'Guest Of'}
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={pairing.partnerImage || undefined} />
+                      <AvatarFallback className="text-xs">
+                        {pairing.partnerName?.split(' ').map(n => n[0]).join('') || '?'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium">{pairing.partnerName || 'Unknown'}</span>
+                    <Link2 className="h-3.5 w-3.5 text-purple-500 ml-auto" />
+                  </div>
+                </div>
+              )}
 
               <Separator className="my-8" />
 

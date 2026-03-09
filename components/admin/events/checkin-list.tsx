@@ -8,21 +8,9 @@ import { useState, useTransition, useMemo } from 'react';
 import { toast } from 'sonner';
 import { ArrowLeft, Search, ScanLine, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { GuestDetailSheet } from '@/components/admin/events/guest-detail-sheet';
 import Link from 'next/link';
-
-interface Attendee {
-  registration: {
-    id: string;
-    status: string;
-    updatedAt: Date;
-  };
-  user: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    image: string | null;
-  };
-}
+import type { Registration, EventQuestion } from '@/lib/types/event';
 
 type FilterTab = 'all' | 'going' | 'checked_in';
 
@@ -32,17 +20,21 @@ export function CheckinList({
   eventName,
   eventDate,
   eventStatus,
+  questions,
 }: {
-  attendees: Attendee[];
+  attendees: Registration[];
   eventId: string;
   eventName: string;
   eventDate: Date;
   eventStatus: string;
+  questions: EventQuestion[] | null;
 }) {
   const [search, setSearch] = useState('');
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
   const [isPending, startTransition] = useTransition();
   const [showClose, setShowClose] = useState(false);
+  const [selectedAttendee, setSelectedAttendee] = useState<Registration | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const checkedInCount = attendees.filter(a => a.registration.status === 'checked_in').length;
   const goingCount = attendees.filter(a => ['registered', 'selected'].includes(a.registration.status)).length;
@@ -68,7 +60,7 @@ export function CheckinList({
     return list;
   }, [attendees, search, filterTab]);
 
-  const handleCheckin = (attendee: Attendee) => {
+  const handleCheckin = (attendee: Registration) => {
     startTransition(async () => {
       try {
         await checkinAttendee(attendee.registration.id, eventId);
@@ -79,7 +71,7 @@ export function CheckinList({
     });
   };
 
-  const handleUndo = (attendee: Attendee) => {
+  const handleUndo = (attendee: Registration) => {
     startTransition(async () => {
       try {
         await undoCheckin(attendee.registration.id, eventId, 'registered');
@@ -196,22 +188,31 @@ export function CheckinList({
                   isCheckedIn ? 'bg-green-500/5' : ''
                 }`}
               >
-                <Avatar className="h-10 w-10 shrink-0">
-                  <AvatarImage src={attendee.user.image || undefined} />
-                  <AvatarFallback>
-                    {attendee.user.name?.split(' ').map(n => n[0]).join('') || '?'}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{attendee.user.name || 'Unknown'}</p>
-                  <p className="text-sm text-muted-foreground truncate">{attendee.user.email}</p>
-                  {isCheckedIn && (
-                    <p className="text-xs text-green-600 mt-0.5">
-                      <Check className="inline h-3 w-3 mr-0.5" />
-                      Checked in {formatCheckinTime(attendee.registration.updatedAt)}
-                    </p>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  className="flex flex-1 items-center gap-3 min-w-0 rounded-md -m-1 p-1 transition-colors hover:bg-muted/50 active:bg-muted/70 text-left"
+                  onClick={() => {
+                    setSelectedAttendee(attendee);
+                    setSheetOpen(true);
+                  }}
+                >
+                  <Avatar className="h-10 w-10 shrink-0">
+                    <AvatarImage src={attendee.user.image || undefined} />
+                    <AvatarFallback>
+                      {attendee.user.name?.split(' ').map(n => n[0]).join('') || '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{attendee.user.name || 'Unknown'}</p>
+                    <p className="text-sm text-muted-foreground truncate">{attendee.user.email}</p>
+                    {isCheckedIn && (
+                      <p className="text-xs text-green-600 mt-0.5">
+                        <Check className="inline h-3 w-3 mr-0.5" />
+                        Checked in {formatCheckinTime(attendee.registration.updatedAt)}
+                      </p>
+                    )}
+                  </div>
+                </button>
                 <div className="shrink-0">
                   {isCheckedIn ? (
                     <Button
@@ -270,6 +271,18 @@ export function CheckinList({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <GuestDetailSheet
+        registration={selectedAttendee}
+        eventId={eventId}
+        questions={questions}
+        pairing={null}
+        open={sheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) setSelectedAttendee(null);
+        }}
+      />
     </div>
   );
 }

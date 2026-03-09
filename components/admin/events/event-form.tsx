@@ -10,9 +10,14 @@ import {
   Eye,
   ListChecks,
   ShieldCheck,
+  ClipboardList,
+  UserPlus,
+  X,
+  Plus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -21,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { createEventAction, updateEventAction } from "@/app/actions/events";
 import { CoverImagePicker } from "@/components/admin/events/cover-image-picker";
 import { TiptapEditor } from "@/components/admin/events/tiptap-editor";
@@ -29,6 +35,30 @@ import {
   TimezonePicker,
 } from "@/components/admin/events/date-time-picker";
 import type { Event } from "@/lib/db/schema";
+import type { EventQuestion } from "@/lib/types/event";
+
+const STANDARD_IDS = ["std_photo_consent", "std_allergies", "std_dietary"];
+
+const STANDARD_PRESETS: Record<string, EventQuestion> = {
+  std_photo_consent: {
+    id: "std_photo_consent",
+    type: "consent",
+    label: "I consent to photos being taken at this event for use in Latte Lab promotional materials.",
+    required: true,
+  },
+  std_allergies: {
+    id: "std_allergies",
+    type: "text",
+    label: "Allergies",
+    required: false,
+  },
+  std_dietary: {
+    id: "std_dietary",
+    type: "text",
+    label: "Dietary restrictions",
+    required: false,
+  },
+};
 
 export function EventForm({
   event,
@@ -56,6 +86,9 @@ export function EventForm({
   const [waitlistEnabled, setWaitlistEnabled] = useState(
     event?.waitlistEnabled ?? false
   );
+  const [plusOneEnabled, setPlusOneEnabled] = useState(
+    event?.plusOneEnabled ?? false
+  );
   const [requireApproval, setRequireApproval] = useState(
     event?.requireApproval ?? false
   );
@@ -63,15 +96,63 @@ export function EventForm({
     () => Intl.DateTimeFormat().resolvedOptions().timeZone
   );
 
+  // Registration Questions
+  const existingQuestions = (event?.questions as EventQuestion[] | null) ?? [];
+  const [photoConsentOn, setPhotoConsentOn] = useState(
+    () => existingQuestions.some((q) => q.id === "std_photo_consent")
+  );
+  const [allergiesOn, setAllergiesOn] = useState(
+    () => existingQuestions.some((q) => q.id === "std_allergies")
+  );
+  const [dietaryOn, setDietaryOn] = useState(
+    () => existingQuestions.some((q) => q.id === "std_dietary")
+  );
+  const [customQuestions, setCustomQuestions] = useState<EventQuestion[]>(
+    () => existingQuestions.filter((q) => !STANDARD_IDS.includes(q.id))
+  );
+
+  // Add custom question form state
+  const [newLabel, setNewLabel] = useState("");
+  const [newType, setNewType] = useState<"text" | "consent">("text");
+  const [newRequired, setNewRequired] = useState(false);
+
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   const isEditing = !!event;
 
+  function addCustomQuestion() {
+    if (!newLabel.trim()) return;
+    setCustomQuestions((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        type: newType,
+        label: newLabel.trim(),
+        required: newRequired,
+      },
+    ]);
+    setNewLabel("");
+    setNewType("text");
+    setNewRequired(false);
+  }
+
+  function removeCustomQuestion(id: string) {
+    setCustomQuestions((prev) => prev.filter((q) => q.id !== id));
+  }
+
+  function buildQuestionsArray(): EventQuestion[] {
+    const questions: EventQuestion[] = [];
+    if (photoConsentOn) questions.push(STANDARD_PRESETS.std_photo_consent);
+    if (allergiesOn) questions.push(STANDARD_PRESETS.std_allergies);
+    if (dietaryOn) questions.push(STANDARD_PRESETS.std_dietary);
+    questions.push(...customQuestions);
+    return questions;
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    // Client-side validation
     if (!name.trim()) {
       toast.error("Event name is required");
       return;
@@ -97,6 +178,8 @@ export function EventForm({
       return;
     }
 
+    const questions = buildQuestionsArray();
+
     const formData = new FormData();
     formData.set("name", name.trim());
     formData.set("coverImage", coverImage);
@@ -105,10 +188,11 @@ export function EventForm({
     formData.set("capacity", capacity);
     formData.set("visibility", visibility);
     formData.set("waitlistEnabled", String(waitlistEnabled));
+    formData.set("plusOneEnabled", String(plusOneEnabled));
     if (!isEditing) {
       formData.set("requireApproval", String(requireApproval));
     }
-
+    formData.set("questions", questions.length > 0 ? JSON.stringify(questions) : "");
     if (startDate) formData.set("date", startDate.toISOString());
     if (endDate) formData.set("endDate", endDate.toISOString());
 
@@ -245,7 +329,7 @@ export function EventForm({
                 />
               </div>
 
-              {/* Waitlist (conditional: shown when capacity is set) */}
+              {/* Waitlist */}
               {capacity && (
                 <div className="flex items-center justify-between px-3 sm:px-4 py-2">
                   <div className="flex items-center gap-2.5">
@@ -258,6 +342,23 @@ export function EventForm({
                   />
                 </div>
               )}
+
+              {/* Allow +1 guests */}
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2">
+                <div className="flex items-center gap-2.5">
+                  <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                  <div>
+                    <span className="text-sm">Allow +1 Guests</span>
+                    <p className="text-[11px] text-muted-foreground">
+                      Members can invite another member as a +1
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={plusOneEnabled}
+                  onCheckedChange={setPlusOneEnabled}
+                />
+              </div>
 
               {/* Require Approval */}
               <div className="flex items-center justify-between px-3 sm:px-4 py-2">
@@ -280,6 +381,121 @@ export function EventForm({
                     onCheckedChange={setRequireApproval}
                   />
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* Registration Questions */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Registration Questions</h3>
+            </div>
+
+            {/* Standard presets */}
+            <div className="rounded-xl border divide-y">
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2">
+                <div>
+                  <span className="text-sm">Photo consent</span>
+                  <p className="text-[11px] text-muted-foreground">Ask attendees to consent to photos</p>
+                </div>
+                <Switch checked={photoConsentOn} onCheckedChange={setPhotoConsentOn} />
+              </div>
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2">
+                <div>
+                  <span className="text-sm">Allergies</span>
+                  <p className="text-[11px] text-muted-foreground">Ask attendees to list any allergies</p>
+                </div>
+                <Switch checked={allergiesOn} onCheckedChange={setAllergiesOn} />
+              </div>
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2">
+                <div>
+                  <span className="text-sm">Dietary restrictions</span>
+                  <p className="text-[11px] text-muted-foreground">Ask attendees about dietary needs</p>
+                </div>
+                <Switch checked={dietaryOn} onCheckedChange={setDietaryOn} />
+              </div>
+            </div>
+
+            {/* Custom questions list */}
+            {customQuestions.length > 0 && (
+              <div className="rounded-xl border divide-y">
+                {customQuestions.map((q) => (
+                  <div key={q.id} className="flex items-start justify-between px-3 sm:px-4 py-2.5 gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm leading-snug truncate">{q.label}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                          {q.type === "consent" ? "Yes/No" : "Text"}
+                        </Badge>
+                        {q.required && (
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                            Required
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeCustomQuestion(q.id)}
+                      className="shrink-0 text-muted-foreground hover:text-destructive mt-0.5"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add custom question form */}
+            <div className="rounded-xl border px-3 sm:px-4 py-3 space-y-2.5 bg-muted/20">
+              <p className="text-xs font-medium text-muted-foreground">Add custom question</p>
+              <Input
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="e.g. What's your T-shirt size?"
+                className="h-8 text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustomQuestion();
+                  }
+                }}
+              />
+              <div className="flex items-center gap-2">
+                <Select
+                  value={newType}
+                  onValueChange={(v) => setNewType(v as "text" | "consent")}
+                >
+                  <SelectTrigger className="h-7 text-xs flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="text">Text answer</SelectItem>
+                    <SelectItem value="consent">Yes / No</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Switch
+                    id="new-required"
+                    checked={newRequired}
+                    onCheckedChange={setNewRequired}
+                    className="scale-75"
+                  />
+                  <Label htmlFor="new-required" className="text-xs cursor-pointer">
+                    Required
+                  </Label>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 shrink-0"
+                  onClick={addCustomQuestion}
+                  disabled={!newLabel.trim()}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
               </div>
             </div>
           </div>

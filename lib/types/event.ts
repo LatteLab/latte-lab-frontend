@@ -1,4 +1,13 @@
-import type { EventRegistration } from '@/lib/db/schema';
+import type { EventRegistration, EventPlusOneInvite } from '@/lib/db/schema';
+
+export interface EventQuestion {
+  id: string;
+  type: 'text' | 'consent';
+  label: string;
+  required: boolean;
+}
+
+export type QuestionnaireAnswers = Record<string, string | boolean>;
 
 export interface RegistrationUser {
   id: string;
@@ -29,6 +38,11 @@ export interface RegistrationWithStats extends RegistrationRow {
 
 /** Component-friendly type — stats may or may not be present */
 export type Registration = RegistrationRow & { stats?: RegistrationStats };
+
+export interface PlusOneInviteWithUsers extends EventPlusOneInvite {
+  inviterUser: RegistrationUser;
+  inviteeUser: RegistrationUser;
+}
 
 export const statusLabels: Record<string, string> = {
   registered: 'Going',

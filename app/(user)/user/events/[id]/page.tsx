@@ -1,10 +1,11 @@
 import { auth } from '@/auth';
 import { redirect, notFound } from 'next/navigation';
-import { getEventById, getUserRegistration, getEventRegistrations, getRegistrationCount, hasEventAccess } from '@/lib/db/event-queries';
+import { getEventById, getUserRegistration, getEventRegistrations, getRegistrationCount, hasEventAccess, getOutgoingInvite, getIncomingInvite } from '@/lib/db/event-queries';
 import { EventRegistrationButton } from '@/components/user/event-registration-button';
 import { PastEventStatusCard } from '@/components/user/past-event-status-card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { GuestListSection } from '@/components/user/guest-list-section';
+import { PlusOneSection } from '@/components/user/plus-one-section';
 import { Calendar, MapPin, Users, Lock, ShieldCheck } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { isGradient, parseGradient, gradientConfigToCSS } from '@/lib/gradients';
@@ -54,6 +55,38 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     getEventRegistrations(id),
     getRegistrationCount(id, ['registered', 'selected', 'checked_in']),
   ]);
+
+  // Fetch +1 pairing data if feature is enabled and user is registered
+  const [outgoingInvite, incomingInvite] = registration && event.plusOneEnabled
+    ? await Promise.all([
+        getOutgoingInvite(registration.id),
+        getIncomingInvite(registration.id),
+      ])
+    : [null, null];
+
+  // Resolve partner user info for display
+  let partnerUser: { id: string; name: string | null; image: string | null } | null = null;
+  if (outgoingInvite || incomingInvite) {
+    const invite = outgoingInvite || incomingInvite;
+    if (invite && registration) {
+      // Partner registration ID is the one that isn't ours
+      const partnerRegId = invite.inviterRegistrationId === registration.id
+        ? invite.inviteeRegistrationId
+        : invite.inviterRegistrationId;
+      const partnerReg = registrations.find(r => r.registration.id === partnerRegId);
+      if (partnerReg) {
+        partnerUser = { id: partnerReg.user.id, name: partnerReg.user.name, image: partnerReg.user.image };
+      }
+    }
+  }
+
+  // For the cancel button: expose partner info if in an accepted pairing
+  const acceptedInvite = outgoingInvite?.status === 'accepted' ? outgoingInvite
+    : incomingInvite?.status === 'accepted' ? incomingInvite
+    : null;
+  const partnerInfoForButton = acceptedInvite && partnerUser
+    ? { name: partnerUser.name }
+    : null;
 
   const spotsRemaining = Math.max(0, event.capacity - confirmedCount);
   const capacityPercent = Math.min(100, Math.round((confirmedCount / event.capacity) * 100));
@@ -196,6 +229,14 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                     event={event}
                     registration={registration}
                     spotsRemaining={spotsRemaining}
+                    partnerInfo={partnerInfoForButton}
+                  />
+                  <PlusOneSection
+                    event={event}
+                    registration={registration}
+                    outgoingInvite={outgoingInvite}
+                    incomingInvite={incomingInvite}
+                    partnerUser={partnerUser}
                   />
                 </div>
               )}
@@ -222,11 +263,19 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
         {/* Mobile sticky CTA */}
         {!isPastEvent && (
-          <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/80 p-4 backdrop-blur-lg md:hidden">
+          <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/80 p-4 backdrop-blur-lg md:hidden space-y-2">
             <EventRegistrationButton
               event={event}
               registration={registration}
               spotsRemaining={spotsRemaining}
+              partnerInfo={partnerInfoForButton}
+            />
+            <PlusOneSection
+              event={event}
+              registration={registration}
+              outgoingInvite={outgoingInvite}
+              incomingInvite={incomingInvite}
+              partnerUser={partnerUser}
             />
           </div>
         )}

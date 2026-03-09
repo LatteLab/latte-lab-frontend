@@ -5,15 +5,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EventOverview } from "@/components/admin/events/event-overview";
 import { GuestList } from "@/components/admin/events/guest-list";
 import { EventSettings } from "@/components/admin/events/event-settings";
-import type { Event } from "@/lib/db/schema";
+import type { Event, EventPlusOneInvite } from "@/lib/db/schema";
 import type { Registration } from "@/lib/types/event";
 
 export function EventManagementTabs({
   event,
   registrations,
+  pairings = [],
 }: {
   event: Event;
   registrations: Registration[];
+  pairings?: EventPlusOneInvite[];
 }) {
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -36,7 +38,7 @@ export function EventManagementTabs({
       </TabsContent>
 
       <TabsContent value="guests" className="mt-6">
-        <GuestList event={event} registrations={registrations} />
+        <GuestList event={event} registrations={registrations} pairings={pairings} />
       </TabsContent>
 
       <TabsContent value="more" className="mt-6">

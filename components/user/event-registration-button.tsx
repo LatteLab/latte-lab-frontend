@@ -1,24 +1,40 @@
 'use client';
 
+import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { registerForEvent, cancelRegistration } from '@/app/actions/events';
-import { useTransition } from 'react';
 import { toast } from 'sonner';
+import { RegistrationQuestionnaireModal } from '@/components/user/registration-questionnaire-modal';
 import type { Event, EventRegistration } from '@/lib/db/schema';
+import type { QuestionnaireAnswers } from '@/lib/types/event';
 
 interface Props {
   event: Event;
   registration: EventRegistration | null;
   spotsRemaining: number;
+  /** If the user is in an accepted +1 pairing, info about their partner. */
+  partnerInfo?: { name: string | null } | null;
 }
 
-export function EventRegistrationButton({ event, registration, spotsRemaining }: Props) {
+export function EventRegistrationButton({ event, registration, spotsRemaining, partnerInfo }: Props) {
   const [isPending, startTransition] = useTransition();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
 
-  const handleRegister = () => {
+  const hasQuestions = (event.questions?.length ?? 0) > 0;
+
+  function doRegister(answers?: QuestionnaireAnswers) {
     startTransition(async () => {
       try {
-        await registerForEvent(event.id);
+        await registerForEvent(event.id, answers);
         if (event.requireApproval) {
           toast.success('Application submitted! Waiting for approval.');
         } else if (spotsRemaining > 0) {
@@ -30,13 +46,29 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
         toast.error(error instanceof Error ? error.message : 'Registration failed');
       }
     });
+  }
+
+  const handleRegisterClick = () => {
+    if (hasQuestions) {
+      setModalOpen(true);
+    } else {
+      doRegister();
+    }
   };
 
-  const handleCancel = () => {
+  const handleCancelClick = () => {
+    if (partnerInfo) {
+      setCancelDialogOpen(true);
+    } else {
+      doCancel('me');
+    }
+  };
+
+  const doCancel = (scope: 'me' | 'both') => {
     startTransition(async () => {
       try {
-        await cancelRegistration(event.id);
-        toast.success('Registration cancelled');
+        await cancelRegistration(event.id, scope);
+        toast.success(scope === 'both' ? 'Both registrations cancelled' : 'Registration cancelled');
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Failed to cancel');
       }
@@ -78,15 +110,47 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
           {statusLabels[registration.status] || registration.status}
         </Button>
         {canCancel && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full rounded-xl"
-            onClick={handleCancel}
-            disabled={isPending}
-          >
-            {registration.status === 'pending_approval' ? 'Cancel Request' : 'Cancel Registration'}
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full rounded-xl"
+              onClick={handleCancelClick}
+              disabled={isPending}
+            >
+              {registration.status === 'pending_approval' ? 'Cancel Request' : 'Cancel Registration'}
+            </Button>
+            {partnerInfo && (
+              <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Cancel Registration</DialogTitle>
+                    <DialogDescription>
+                      You are paired with {partnerInfo.name || 'a +1'}. Would you like to cancel just your registration, or cancel for both of you?
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      disabled={isPending}
+                      onClick={() => { setCancelDialogOpen(false); doCancel('me'); }}
+                    >
+                      Just me
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="flex-1"
+                      disabled={isPending}
+                      onClick={() => { setCancelDialogOpen(false); doCancel('both'); }}
+                    >
+                      Both of us
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </>
         )}
       </div>
     );
@@ -101,22 +165,16 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
     );
   }
 
-  // Require approval — show "Request Access"
+  // Determine button label
+  let buttonLabel = 'RSVP';
   if (event.requireApproval) {
-    return (
-      <Button
-        size="lg"
-        className="w-full rounded-xl text-lg"
-        disabled={isPending}
-        onClick={handleRegister}
-      >
-        {isPending ? 'Applying...' : 'One-Click Apply'}
-      </Button>
-    );
+    buttonLabel = 'One-Click Apply';
+  } else if (spotsRemaining <= 0 && event.waitlistEnabled) {
+    buttonLabel = 'Join Waitlist';
   }
 
-  // FCFS — no approval
-  if (spotsRemaining <= 0 && !event.waitlistEnabled) {
+  // FCFS full, no waitlist
+  if (!event.requireApproval && spotsRemaining <= 0 && !event.waitlistEnabled) {
     return (
       <Button size="lg" className="w-full rounded-xl text-lg" disabled>
         Event Full
@@ -125,13 +183,29 @@ export function EventRegistrationButton({ event, registration, spotsRemaining }:
   }
 
   return (
-    <Button
-      size="lg"
-      className="w-full rounded-xl text-lg"
-      disabled={isPending}
-      onClick={handleRegister}
-    >
-      {isPending ? 'Registering...' : spotsRemaining > 0 ? 'RSVP' : 'Join Waitlist'}
-    </Button>
+    <>
+      <Button
+        size="lg"
+        className="w-full rounded-xl text-lg"
+        disabled={isPending}
+        onClick={handleRegisterClick}
+      >
+        {isPending ? (event.requireApproval ? 'Applying...' : 'Registering...') : buttonLabel}
+      </Button>
+
+      {hasQuestions && (
+        <RegistrationQuestionnaireModal
+          event={event}
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          onConfirm={(answers) => {
+            setModalOpen(false);
+            doRegister(answers);
+          }}
+          isPending={isPending}
+          buttonLabel={buttonLabel}
+        />
+      )}
+    </>
   );
 }

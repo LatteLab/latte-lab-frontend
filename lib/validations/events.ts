@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+// FormData sends booleans as the strings "true" or "false".
+// z.coerce.boolean() uses Boolean() which maps any non-empty string to true,
+// so we preprocess explicitly to handle the "false" string correctly.
+const formBool = z.preprocess(
+  (v) => (v === 'false' || v === '0' || v === '' ? false : Boolean(v)),
+  z.boolean(),
+);
+
 const eventBaseSchema = z.object({
   name: z.string().min(1, 'Event name is required').max(255),
   description: z.string().optional(),
@@ -9,8 +17,10 @@ const eventBaseSchema = z.object({
   location: z.string().optional(),
   capacity: z.coerce.number().int().min(1, 'Capacity must be at least 1'),
   visibility: z.enum(['private', 'public']).default('private'),
-  waitlistEnabled: z.coerce.boolean().default(false),
-  requireApproval: z.coerce.boolean().default(false),
+  waitlistEnabled: formBool.pipe(z.boolean()).default(false),
+  plusOneEnabled: formBool.pipe(z.boolean()).default(false),
+  requireApproval: formBool.pipe(z.boolean()).default(false),
+  questions: z.string().optional(),
 });
 
 const endDateAfterStart = {

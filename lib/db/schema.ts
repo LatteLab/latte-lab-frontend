@@ -1,4 +1,5 @@
-import { pgTable, pgEnum, text, timestamp, uuid, primaryKey, integer, real, unique, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, pgEnum, text, timestamp, uuid, primaryKey, integer, real, unique, boolean, check, json } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import type { AdapterAccountType } from 'next-auth/adapters';
 
 // ============================================================================
@@ -11,6 +12,7 @@ export const registrationStatusEnum = pgEnum('registration_status', [
   'registered', 'waitlisted', 'selected', 'rejected', 'checked_in', 'no_show', 'pending_approval', 'draft_selected', 'draft_rejected'
 ]);
 export const lotteryOutcomeEnum = pgEnum('lottery_outcome', ['won', 'lost']);
+export const plusOneInviteStatusEnum = pgEnum('plus_one_invite_status', ['pending', 'accepted']);
 export const lotteryStatusEnum = pgEnum('lottery_status', ['draft', 'finalized']);
 export const emailBlastStatusEnum = pgEnum('email_blast_status', ['draft', 'sending', 'sent', 'failed']);
 export const emailAudienceTypeEnum = pgEnum('email_audience_type', ['all', 'event', 'semester_status', 'manual']);
@@ -89,7 +91,9 @@ export const events = pgTable('events', {
   capacity: integer('capacity').notNull(),
   visibility: eventVisibilityEnum('visibility').notNull().default('private'),
   waitlistEnabled: boolean('waitlist_enabled').notNull().default(false),
+  plusOneEnabled: boolean('plus_one_enabled').notNull().default(false),
   requireApproval: boolean('require_approval').notNull().default(false),
+  questions: json('questions').$type<Array<{ id: string; type: 'text' | 'consent'; label: string; required: boolean }>>(),
   status: eventStatusEnum('status').notNull().default('open'),
   lotteryStatus: lotteryStatusEnum('lottery_status'),
   inviteCode: text('invite_code').unique(),
@@ -115,6 +119,7 @@ export const eventRegistrations = pgTable('event_registrations', {
   eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   status: registrationStatusEnum('status').notNull(),
   lotteryPriorityScore: real('lottery_priority_score'),
+  questionnaireAnswers: json('questionnaire_answers').$type<Record<string, string | boolean>>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
@@ -130,6 +135,22 @@ export const lotteryHistory = pgTable('lottery_history', {
   semester: text('semester'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// +1 invite table — tracks pairing invites between registered users
+export const eventPlusOneInvites = pgTable('event_plus_one_invites', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  inviterRegistrationId: uuid('inviter_registration_id').notNull()
+    .references(() => eventRegistrations.id, { onDelete: 'cascade' }),
+  inviteeRegistrationId: uuid('invitee_registration_id').notNull()
+    .references(() => eventRegistrations.id, { onDelete: 'cascade' }),
+  status: plusOneInviteStatusEnum('status').notNull().default('pending'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  uniqueInviter: unique().on(table.inviterRegistrationId),
+  uniqueInvitee: unique().on(table.inviteeRegistrationId),
+  noSelfInvite: check('no_self_invite', sql`${table.inviterRegistrationId} != ${table.inviteeRegistrationId}`),
+}));
 
 // Registration audit log — tracks every status change with actor info
 export const registrationAuditLog = pgTable('registration_audit_log', {
@@ -207,6 +228,8 @@ export type EmailRecipient = typeof emailRecipients.$inferSelect;
 export type NewEmailRecipient = typeof emailRecipients.$inferInsert;
 export type RegistrationAuditLog = typeof registrationAuditLog.$inferSelect;
 export type NewRegistrationAuditLog = typeof registrationAuditLog.$inferInsert;
+export type EventPlusOneInvite = typeof eventPlusOneInvites.$inferSelect;
+export type NewEventPlusOneInvite = typeof eventPlusOneInvites.$inferInsert;
 
 // Enum value types — use these for typed parameters and casts
 export type RegistrationStatus = (typeof registrationStatusEnum.enumValues)[number];
