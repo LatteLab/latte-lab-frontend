@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionProvider } from "@/components/providers/session-provider";
+import { PostHogIdentifier } from "@/components/providers/posthog-identifier";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
   title: "Latte Lab",
   description: "MIT's coffee science community — events, tastings, and more.",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://mit-latte-lab.vercel.app"
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://app.lattelab.org",
   ),
   openGraph: {
     title: "Latte Lab",
@@ -53,6 +54,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <SessionProvider>
+          <PostHogIdentifier />
           {children}
         </SessionProvider>
         <Toaster />

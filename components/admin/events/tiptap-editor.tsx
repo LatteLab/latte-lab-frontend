@@ -4,7 +4,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
-import { Bold, Italic, List, ListOrdered, Link as LinkIcon } from 'lucide-react';
+import { Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Link as LinkIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface TiptapEditorProps {
@@ -43,6 +43,21 @@ export function TiptapEditor({
       icon: Italic,
       action: () => editor.chain().focus().toggleItalic().run(),
       isActive: editor.isActive('italic'),
+    },
+    {
+      icon: Heading1,
+      action: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+      isActive: editor.isActive('heading', { level: 1 }),
+    },
+    {
+      icon: Heading2,
+      action: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+      isActive: editor.isActive('heading', { level: 2 }),
+    },
+    {
+      icon: Heading3,
+      action: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
+      isActive: editor.isActive('heading', { level: 3 }),
     },
     {
       icon: List,
@@ -93,11 +108,8 @@ export function TiptapEditor({
         editor={editor}
         className={cn(
           'p-3 h-[200px] overflow-y-auto',
+          'prose prose-sm max-w-none dark:prose-invert',
           '[&_.tiptap]:outline-none [&_.tiptap]:min-h-full',
-          '[&_.tiptap_p]:mb-2',
-          '[&_.tiptap_ul]:list-disc [&_.tiptap_ul]:pl-4 [&_.tiptap_ul]:mb-2',
-          '[&_.tiptap_ol]:list-decimal [&_.tiptap_ol]:pl-4 [&_.tiptap_ol]:mb-2',
-          '[&_.tiptap_a]:text-primary [&_.tiptap_a]:underline',
           '[&_.tiptap_.is-editor-empty:first-child::before]:text-muted-foreground',
           '[&_.tiptap_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]',
           '[&_.tiptap_.is-editor-empty:first-child::before]:float-left',

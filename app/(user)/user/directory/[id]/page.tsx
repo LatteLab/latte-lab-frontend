@@ -4,6 +4,7 @@ import { getUserById } from '@/lib/db/queries';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mail, Phone, MapPin, GraduationCap, BookOpen } from 'lucide-react';
+import { formatYearLabel } from '@/lib/utils';
 
 export default async function MemberProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -27,7 +28,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
             <h1 className="text-2xl font-bold">{user.name || 'Unknown'}</h1>
             {(user.classYear || user.major) && (
               <p className="text-muted-foreground mt-1">
-                {[user.classYear && `Class of ${user.classYear}`, user.major]
+                {[user.classYear && formatYearLabel(user.classYear), user.major]
                   .filter(Boolean).join(' · ')}
               </p>
             )}

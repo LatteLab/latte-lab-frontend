@@ -10,7 +10,7 @@ import { Calendar, MapPin, Users, Lock, ShieldCheck } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { isGradient, parseGradient, gradientConfigToCSS } from '@/lib/gradients';
 import { CoverImageLightbox } from '@/components/user/cover-image-lightbox';
-import DOMPurify from 'isomorphic-dompurify';
+import { sanitize } from '@/lib/sanitize';
 
 function formatDate(date: Date) {
   return new Date(date).toLocaleDateString('en-US', {
@@ -44,8 +44,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const event = await getEventById(id);
   if (!event) notFound();
 
-  // Access check for private events
-  if (event.visibility === 'private') {
+  // Access check for private events (admins bypass)
+  if (event.visibility === 'private' && !session.user.isAdmin) {
     const access = await hasEventAccess(session.user.id, id);
     if (!access) notFound();
   }
@@ -244,8 +244,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               {/* Description */}
               {event.description && (
                 <div
-                  className="prose prose-sm dark:prose-invert max-w-none pt-4 border-t"
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(event.description) }}
+                  className="event-description prose prose-lg dark:prose-invert max-w-none pt-6 border-t"
+                  dangerouslySetInnerHTML={{ __html: sanitize(event.description) }}
                 />
               )}
 

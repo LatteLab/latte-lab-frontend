@@ -282,8 +282,10 @@ export async function cancelRegistration(eventId: string, scope: 'me' | 'both' =
       const partnerReg = allRegs.find(r => r.registration.id === partnerRegId);
       if (partnerReg) {
         // Audit for partner — must be before deleteRegistration (cascade deletes it)
+        // Use null registrationId — the registration is about to be deleted
+        // and cascade would remove the audit entry with it.
         await createAuditLogEntry({
-          registrationId: partnerReg.registration.id,
+          registrationId: null,
           eventId,
           userId: partnerReg.user.id,
           oldStatus: partnerReg.registration.status,
@@ -297,9 +299,10 @@ export async function cancelRegistration(eventId: string, scope: 'me' | 'both' =
     }
   }
 
-  // Audit own cancellation — must be before deleteRegistration
+  // Audit own cancellation — use null registrationId so the entry survives
+  // cascade delete of the registration.
   await createAuditLogEntry({
-    registrationId: existing.id,
+    registrationId: null,
     eventId,
     userId: session.user.id,
     oldStatus: existing.status,
@@ -439,8 +442,21 @@ export async function runLotteryDraft(eventId: string) {
       rejected: rejectedScored.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
     };
   } catch (error) {
-    // Reset lotteryStatus so admins can retry after a transient failure
-    await dbUpdateEvent(eventId, { lotteryStatus: null });
+    // Reset lotteryStatus and any draft registration statuses so admins can retry.
+    // Mirrors discardLotteryDraft: draft_selected/draft_rejected → pending_approval.
+    const draftRegs = await getEventRegistrations(eventId);
+    const draftEntrants = draftRegs.filter(r =>
+      r.registration.status === 'draft_selected' || r.registration.status === 'draft_rejected'
+    );
+    await Promise.all([
+      ...draftEntrants.map(r =>
+        updateRegistration(r.registration.id, {
+          status: 'pending_approval',
+          lotteryPriorityScore: null,
+        })
+      ),
+      dbUpdateEvent(eventId, { lotteryStatus: null }),
+    ]);
     throw error;
   }
 }
