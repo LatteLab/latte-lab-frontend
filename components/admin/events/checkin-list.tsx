@@ -10,18 +10,7 @@ import { ArrowLeft, Search, ScanLine, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { GuestDetailSheet } from '@/components/admin/events/guest-detail-sheet';
 import Link from 'next/link';
-import type { EventRegistration } from '@/lib/db/schema';
 import type { Registration, EventQuestion } from '@/lib/types/event';
-
-interface Attendee {
-  registration: EventRegistration;
-  user: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    image: string | null;
-  };
-}
 
 type FilterTab = 'all' | 'going' | 'checked_in';
 
@@ -33,7 +22,7 @@ export function CheckinList({
   eventStatus,
   questions,
 }: {
-  attendees: Attendee[];
+  attendees: Registration[];
   eventId: string;
   eventName: string;
   eventDate: Date;
@@ -71,7 +60,7 @@ export function CheckinList({
     return list;
   }, [attendees, search, filterTab]);
 
-  const handleCheckin = (attendee: Attendee) => {
+  const handleCheckin = (attendee: Registration) => {
     startTransition(async () => {
       try {
         await checkinAttendee(attendee.registration.id, eventId);
@@ -82,7 +71,7 @@ export function CheckinList({
     });
   };
 
-  const handleUndo = (attendee: Attendee) => {
+  const handleUndo = (attendee: Registration) => {
     startTransition(async () => {
       try {
         await undoCheckin(attendee.registration.id, eventId, 'registered');
@@ -203,7 +192,7 @@ export function CheckinList({
                   type="button"
                   className="flex flex-1 items-center gap-3 min-w-0 rounded-md -m-1 p-1 transition-colors hover:bg-muted/50 active:bg-muted/70 text-left"
                   onClick={() => {
-                    setSelectedAttendee(attendee as Registration);
+                    setSelectedAttendee(attendee);
                     setSheetOpen(true);
                   }}
                 >
