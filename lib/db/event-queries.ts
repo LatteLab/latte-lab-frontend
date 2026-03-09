@@ -691,6 +691,12 @@ export async function getPlusOneInviteById(id: string): Promise<EventPlusOneInvi
   return row || null;
 }
 
+/** All invites for an event (any status). Used to bulk-check invite involvement. */
+export async function getAllEventInvites(eventId: string): Promise<EventPlusOneInvite[]> {
+  return db.select().from(eventPlusOneInvites)
+    .where(eq(eventPlusOneInvites.eventId, eventId));
+}
+
 /** All accepted pairings for an event (used by lottery + waitlist logic). */
 export async function getAcceptedPairingsForEvent(eventId: string): Promise<EventPlusOneInvite[]> {
   return db.select().from(eventPlusOneInvites)

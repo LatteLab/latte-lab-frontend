@@ -33,6 +33,7 @@ import {
   getIncomingInvite,
   getPlusOneInviteById,
   getAcceptedPairingsForEvent,
+  getAllEventInvites,
   createPlusOneInvite,
   updatePlusOneInviteStatus,
   deletePlusOneInvite,
@@ -1166,31 +1167,17 @@ export async function getInvitableUsers(eventId: string) {
   const session = await auth();
   if (!session?.user) throw new Error('Unauthorized');
 
-  const regs = await getEventRegistrations(eventId);
-  const inviteRows = await Promise.all(
-    regs.map(async r => {
-      const [outgoing, incoming] = await Promise.all([
-        getOutgoingInvite(r.registration.id),
-        getIncomingInvite(r.registration.id),
-      ]);
-      return { regId: r.registration.id, outgoing, incoming };
-    })
-  );
+  const [regs, allInvites] = await Promise.all([
+    getEventRegistrations(eventId),
+    getAllEventInvites(eventId),
+  ]);
 
-  // Build set of registration IDs that are involved in any invite:
-  // - any reg that has an outgoing or incoming invite (the reg itself is involved)
-  // - all parties named in those invite objects (to exclude both sides of a pairing)
+  // Build set of registration IDs that are involved in any invite
+  // (both sides of every invite are excluded from the invitable list)
   const invitedRegIds = new Set<string>();
-  for (const { regId, outgoing, incoming } of inviteRows) {
-    if (outgoing || incoming) invitedRegIds.add(regId);
-    if (outgoing) {
-      invitedRegIds.add(outgoing.inviterRegistrationId);
-      invitedRegIds.add(outgoing.inviteeRegistrationId);
-    }
-    if (incoming) {
-      invitedRegIds.add(incoming.inviterRegistrationId);
-      invitedRegIds.add(incoming.inviteeRegistrationId);
-    }
+  for (const invite of allInvites) {
+    invitedRegIds.add(invite.inviterRegistrationId);
+    invitedRegIds.add(invite.inviteeRegistrationId);
   }
 
   return regs
