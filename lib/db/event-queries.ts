@@ -1,7 +1,7 @@
 import { db } from './index';
-import { events, eventRegistrations, eventAccess, lotteryHistory, users, semesters, registrationAuditLog } from './schema';
+import { events, eventRegistrations, eventAccess, lotteryHistory, users, semesters, registrationAuditLog, eventPlusOneInvites } from './schema';
 import { eq, and, or, desc, gte, lt, count, inArray, isNull, sql } from 'drizzle-orm';
-import type { Event, NewEvent, EventRegistration, NewRegistrationAuditLog } from './schema';
+import type { Event, NewEvent, EventRegistration, NewRegistrationAuditLog, EventPlusOneInvite, NewEventPlusOneInvite } from './schema';
 import type { RegistrationRow, RegistrationWithStats } from '@/lib/types/event';
 
 // ============================================================================
@@ -206,7 +206,12 @@ export async function getUserRegistration(userId: string, eventId: string) {
   return reg || null;
 }
 
-export async function createRegistration(data: { userId: string; eventId: string; status: EventRegistration['status'] }) {
+export async function createRegistration(data: {
+  userId: string;
+  eventId: string;
+  status: EventRegistration['status'];
+  questionnaireAnswers?: Record<string, string | boolean> | null;
+}) {
   const [reg] = await db.insert(eventRegistrations)
     .values(data)
     .returning();
@@ -223,27 +228,30 @@ export async function createRegistrationWithCapacityCheck(data: {
   eventId: string;
   capacity: number;
   waitlistEnabled: boolean;
+  questionnaireAnswers?: Record<string, string | boolean> | null;
 }): Promise<{ reg: EventRegistration; wasWaitlisted: boolean } | null> {
+  const { userId, eventId, capacity, waitlistEnabled, questionnaireAnswers } = data;
+
   return db.transaction(async (tx) => {
     // Row-level lock on the event serializes concurrent registration attempts
-    await tx.execute(sql`SELECT id FROM events WHERE id = ${data.eventId} FOR UPDATE`);
+    await tx.execute(sql`SELECT id FROM events WHERE id = ${eventId} FOR UPDATE`);
 
     const [{ currentCount }] = await tx
       .select({ currentCount: count() })
       .from(eventRegistrations)
       .where(and(
-        eq(eventRegistrations.eventId, data.eventId),
+        eq(eventRegistrations.eventId, eventId),
         inArray(eventRegistrations.status, ['registered', 'checked_in']),
       ));
 
-    if (currentCount < data.capacity) {
+    if (currentCount < capacity) {
       const [reg] = await tx.insert(eventRegistrations)
-        .values({ userId: data.userId, eventId: data.eventId, status: 'registered' })
+        .values({ userId, eventId, status: 'registered', questionnaireAnswers })
         .returning();
       return { reg, wasWaitlisted: false };
-    } else if (data.waitlistEnabled) {
+    } else if (waitlistEnabled) {
       const [reg] = await tx.insert(eventRegistrations)
-        .values({ userId: data.userId, eventId: data.eventId, status: 'waitlisted' })
+        .values({ userId, eventId, status: 'waitlisted', questionnaireAnswers })
         .returning();
       return { reg, wasWaitlisted: true };
     } else {
@@ -651,4 +659,60 @@ export async function getRegistrationAuditLog(registrationId: string) {
     .leftJoin(users, eq(registrationAuditLog.actorId, users.id))
     .where(eq(registrationAuditLog.registrationId, registrationId))
     .orderBy(desc(registrationAuditLog.createdAt));
+}
+
+// ============================================================================
+// +1 Pairing Queries
+// ============================================================================
+
+/** Outgoing invite sent by this registration (as inviter). */
+export async function getOutgoingInvite(inviterRegistrationId: string): Promise<EventPlusOneInvite | null> {
+  const [row] = await db.select().from(eventPlusOneInvites)
+    .where(eq(eventPlusOneInvites.inviterRegistrationId, inviterRegistrationId))
+    .limit(1);
+  return row || null;
+}
+
+/** Incoming invite received by this registration (as invitee). */
+export async function getIncomingInvite(inviteeRegistrationId: string): Promise<EventPlusOneInvite | null> {
+  const [row] = await db.select().from(eventPlusOneInvites)
+    .where(eq(eventPlusOneInvites.inviteeRegistrationId, inviteeRegistrationId))
+    .limit(1);
+  return row || null;
+}
+
+/** Get invite by ID. */
+export async function getPlusOneInviteById(id: string): Promise<EventPlusOneInvite | null> {
+  const [row] = await db.select().from(eventPlusOneInvites)
+    .where(eq(eventPlusOneInvites.id, id))
+    .limit(1);
+  return row || null;
+}
+
+/** All accepted pairings for an event (used by lottery + waitlist logic). */
+export async function getAcceptedPairingsForEvent(eventId: string): Promise<EventPlusOneInvite[]> {
+  return db.select().from(eventPlusOneInvites)
+    .where(and(
+      eq(eventPlusOneInvites.eventId, eventId),
+      eq(eventPlusOneInvites.status, 'accepted'),
+    ));
+}
+
+/** Create a new +1 invite. */
+export async function createPlusOneInvite(data: NewEventPlusOneInvite): Promise<EventPlusOneInvite> {
+  const [row] = await db.insert(eventPlusOneInvites).values(data).returning();
+  return row;
+}
+
+/** Update invite status (pending → accepted). */
+export async function updatePlusOneInviteStatus(
+  id: string,
+  status: 'pending' | 'accepted',
+): Promise<void> {
+  await db.update(eventPlusOneInvites).set({ status }).where(eq(eventPlusOneInvites.id, id));
+}
+
+/** Delete an invite (decline or dissolve). */
+export async function deletePlusOneInvite(id: string): Promise<void> {
+  await db.delete(eventPlusOneInvites).where(eq(eventPlusOneInvites.id, id));
 }

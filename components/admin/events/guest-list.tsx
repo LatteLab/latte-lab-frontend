@@ -25,7 +25,7 @@ import {
 import { toast } from "sonner";
 import { Search, ClipboardCheck, Trash2, Check, X, Mail } from "lucide-react";
 import Link from "next/link";
-import type { Event } from "@/lib/db/schema";
+import type { Event, EventPlusOneInvite } from "@/lib/db/schema";
 import type { Registration } from "@/lib/types/event";
 import { statusColors, statusLabels } from "@/lib/types/event";
 
@@ -64,9 +64,11 @@ function formatRelativeTime(date: Date): string {
 export function GuestList({
   event,
   registrations,
+  pairings = [],
 }: {
   event: Event;
   registrations: Registration[];
+  pairings?: EventPlusOneInvite[];
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -77,6 +79,20 @@ export function GuestList({
   const [statusChangeReg, setStatusChangeReg] = useState<Registration | null>(null);
 
   const hasDraft = event.lotteryStatus === "draft";
+
+  // Build map: registrationId → partner name for displaying pair badges
+  const pairingBadgeMap = useMemo(() => {
+    const map = new Map<string, { partnerName: string | null; isInviter: boolean }>();
+    for (const pairing of pairings) {
+      const inviterReg = registrations.find(r => r.registration.id === pairing.inviterRegistrationId);
+      const inviteeReg = registrations.find(r => r.registration.id === pairing.inviteeRegistrationId);
+      if (inviterReg && inviteeReg) {
+        map.set(pairing.inviterRegistrationId, { partnerName: inviteeReg.user.name, isInviter: true });
+        map.set(pairing.inviteeRegistrationId, { partnerName: inviterReg.user.name, isInviter: false });
+      }
+    }
+    return map;
+  }, [pairings, registrations]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -354,6 +370,18 @@ export function GuestList({
                       )}
                     </div>
                   )}
+                  {/* +1 pairing badge */}
+                  {pairingBadgeMap.has(registration.id) && (
+                    <Badge
+                      variant="outline"
+                      className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20 hidden sm:flex shrink-0"
+                      title={pairingBadgeMap.get(registration.id)?.isInviter
+                        ? `+1: ${pairingBadgeMap.get(registration.id)?.partnerName}`
+                        : `+1 of ${pairingBadgeMap.get(registration.id)?.partnerName}`}
+                    >
+                      {pairingBadgeMap.get(registration.id)?.isInviter ? "+1" : "guest"}
+                    </Badge>
+                  )}
                 </div>
                 <div
                   className="flex items-center gap-2 ml-2"
@@ -423,6 +451,7 @@ export function GuestList({
       <GuestDetailSheet
         registration={selectedRegistration}
         eventId={event.id}
+        questions={event.questions ?? null}
         open={modalOpen}
         onOpenChange={setModalOpen}
       />

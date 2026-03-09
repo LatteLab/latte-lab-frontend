@@ -29,9 +29,17 @@ import {
   deleteLotteryWins,
   createRegistrationWithCapacityCheck,
   claimLotteryDraftSlot,
+  getOutgoingInvite,
+  getIncomingInvite,
+  getPlusOneInviteById,
+  getAcceptedPairingsForEvent,
+  createPlusOneInvite,
+  updatePlusOneInviteStatus,
+  deletePlusOneInvite,
 } from '@/lib/db/event-queries';
 import { getUserById } from '@/lib/db/queries';
 import { createEventSchema, updateEventSchema } from '@/lib/validations/events';
+import { weightedSelectWithSeats, type LotteryEntry } from '@/lib/utils/lottery';
 
 export async function createEventAction(formData: FormData) {
   const session = await auth();
@@ -43,7 +51,9 @@ export async function createEventAction(formData: FormData) {
     capacity: Number(raw.capacity),
     requireApproval: raw.requireApproval === 'true',
     waitlistEnabled: raw.waitlistEnabled === 'true',
+    plusOneEnabled: raw.plusOneEnabled === 'true',
   });
+  const questions = raw.questions ? JSON.parse(raw.questions as string) : null;
 
   // Auto-generate invite code for private events
   const inviteCode = parsed.visibility === 'private'
@@ -56,6 +66,7 @@ export async function createEventAction(formData: FormData) {
     description: parsed.description || null,
     location: parsed.location || null,
     endDate: parsed.endDate || null,
+    questions: questions || null,
     inviteCode,
     status: 'open',
     createdBy: session.user.id,
@@ -75,7 +86,9 @@ export async function updateEventAction(eventId: string, formData: FormData) {
     ...raw,
     capacity: raw.capacity ? Number(raw.capacity) : undefined,
     waitlistEnabled: raw.waitlistEnabled !== undefined ? raw.waitlistEnabled === 'true' : undefined,
+    plusOneEnabled: raw.plusOneEnabled !== undefined ? raw.plusOneEnabled === 'true' : undefined,
   });
+  const questions = raw.questions !== undefined ? (raw.questions ? JSON.parse(raw.questions as string) : null) : undefined;
 
   // Handle invite code when visibility changes
   let inviteCode: string | null | undefined;
@@ -94,6 +107,7 @@ export async function updateEventAction(eventId: string, formData: FormData) {
     description: parsed.description || null,
     location: parsed.location || null,
     endDate: parsed.endDate || null,
+    ...(questions !== undefined && { questions }),
     ...(inviteCode !== undefined && { inviteCode }),
   });
 
@@ -103,7 +117,7 @@ export async function updateEventAction(eventId: string, formData: FormData) {
   return event;
 }
 
-export async function registerForEvent(eventId: string) {
+export async function registerForEvent(eventId: string, questionnaireAnswers?: Record<string, string | boolean>) {
   const session = await auth();
   if (!session?.user) throw new Error('Unauthorized');
 
@@ -121,12 +135,17 @@ export async function registerForEvent(eventId: string) {
   const existing = await getUserRegistration(session.user.id, eventId);
   if (existing) throw new Error('Already registered');
 
+  const answers = questionnaireAnswers && Object.keys(questionnaireAnswers).length > 0
+    ? questionnaireAnswers
+    : null;
+
   // Require approval — always pending_approval
   if (event.requireApproval) {
     const reg = await createRegistration({
       userId: session.user.id,
       eventId,
       status: 'pending_approval',
+      questionnaireAnswers: answers,
     });
     await createAuditLogEntry({
       registrationId: reg.id,
@@ -149,6 +168,7 @@ export async function registerForEvent(eventId: string) {
     eventId,
     capacity: event.capacity,
     waitlistEnabled: event.waitlistEnabled,
+    questionnaireAnswers: answers,
   });
 
   if (!result) throw new Error('Event is full');
@@ -168,52 +188,131 @@ export async function registerForEvent(eventId: string) {
   revalidatePath(`/admin/events/${eventId}`);
 }
 
-export async function cancelRegistration(eventId: string) {
+/** Pair-aware waitlist promotion: promotes one or more waitlisted registrations when slots open. */
+async function promoteFromWaitlist(eventId: string) {
+  const event = await getEventById(eventId);
+  if (!event?.waitlistEnabled || event.requireApproval) return;
+
+  const regs = await getEventRegistrations(eventId);
+  const waitlisted = regs.filter(r => r.registration.status === 'waitlisted');
+  if (waitlisted.length === 0) return;
+
+  const confirmedCount = await getRegistrationCount(eventId, ['registered', 'checked_in']);
+  let availableSlots = Math.max(0, event.capacity - confirmedCount);
+  if (availableSlots === 0) return;
+
+  const pairings = await getAcceptedPairingsForEvent(eventId);
+  // Build a set of waitlisted registration IDs for quick lookup
+  const waitlistedRegIds = new Set(waitlisted.map(r => r.registration.id));
+
+  // Build a map: regId → partnerId (only for pairings where BOTH are waitlisted)
+  const bothWaitlistedPartnerMap = new Map<string, string>();
+  for (const pairing of pairings) {
+    const inviterWaiting = waitlistedRegIds.has(pairing.inviterRegistrationId);
+    const inviteeWaiting = waitlistedRegIds.has(pairing.inviteeRegistrationId);
+    if (inviterWaiting && inviteeWaiting) {
+      bothWaitlistedPartnerMap.set(pairing.inviterRegistrationId, pairing.inviteeRegistrationId);
+      bothWaitlistedPartnerMap.set(pairing.inviteeRegistrationId, pairing.inviterRegistrationId);
+    }
+  }
+
+  const auditEntries: Parameters<typeof createAuditLogEntries>[0] = [];
+
+  // Walk the FIFO waitlist and promote as many as available slots allow
+  const promoted = new Set<string>();
+  for (const entry of waitlisted) {
+    if (availableSlots <= 0) break;
+    if (promoted.has(entry.registration.id)) continue;
+
+    const partnerId = bothWaitlistedPartnerMap.get(entry.registration.id);
+    if (partnerId) {
+      // This person and their partner are both waiting — need 2 slots
+      if (availableSlots >= 2) {
+        const partnerEntry = waitlisted.find(r => r.registration.id === partnerId)!;
+        await updateRegistration(entry.registration.id, { status: 'registered' });
+        await updateRegistration(partnerId, { status: 'registered' });
+        auditEntries.push(
+          { registrationId: entry.registration.id, eventId, userId: entry.user.id, oldStatus: 'waitlisted', newStatus: 'registered', action: 'approved', actorId: null, actorType: 'system' },
+          { registrationId: partnerId, eventId, userId: partnerEntry.user.id, oldStatus: 'waitlisted', newStatus: 'registered', action: 'approved', actorId: null, actorType: 'system' },
+        );
+        promoted.add(entry.registration.id);
+        promoted.add(partnerId);
+        availableSlots -= 2;
+      }
+      // else: only 1 slot but pair needs 2 → skip this pair
+    } else {
+      // Solo or partner not on waitlist — can take 1 slot
+      await updateRegistration(entry.registration.id, { status: 'registered' });
+      auditEntries.push({
+        registrationId: entry.registration.id, eventId, userId: entry.user.id,
+        oldStatus: 'waitlisted', newStatus: 'registered', action: 'approved', actorId: null, actorType: 'system',
+      });
+      promoted.add(entry.registration.id);
+      availableSlots -= 1;
+    }
+  }
+
+  if (auditEntries.length > 0) {
+    await createAuditLogEntries(auditEntries);
+  }
+}
+
+export async function cancelRegistration(eventId: string, scope: 'me' | 'both' = 'me') {
   const session = await auth();
   if (!session?.user) throw new Error('Unauthorized');
 
   // Get the registration before deleting so we can log it
   const existing = await getUserRegistration(session.user.id, eventId);
+  if (!existing) throw new Error('Registration not found');
 
-  await deleteRegistration(session.user.id, eventId);
+  // If scope=both, find and cancel partner first (before deleting own registration,
+  // since cascade delete of the invite would happen when either reg is deleted)
+  if (scope === 'both') {
+    const outgoing = await getOutgoingInvite(existing.id);
+    const incoming = await getIncomingInvite(existing.id);
+    const invite = outgoing || incoming;
 
-  // Audit entry — will be cascade-deleted with the registration, but the waitlist
-  // promotion audit below survives since that registration persists
-  if (existing) {
-    await createAuditLogEntry({
-      registrationId: existing.id,
-      eventId,
-      userId: session.user.id,
-      oldStatus: existing.status,
-      newStatus: 'cancelled',
-      action: 'removed',
-      actorId: null,
-      actorType: 'user',
-    });
-  }
+    if (invite) {
+      const partnerRegId = invite.inviterRegistrationId === existing.id
+        ? invite.inviteeRegistrationId
+        : invite.inviterRegistrationId;
 
-  // If waitlist enabled, promote next person
-  const event = await getEventById(eventId);
-  if (event?.waitlistEnabled && !event.requireApproval) {
-    const regs = await getEventRegistrations(eventId);
-    const waitlisted = regs.filter(r => r.registration.status === 'waitlisted');
-    if (waitlisted.length > 0) {
-      const confirmedCount = await getRegistrationCount(eventId, ['registered', 'checked_in']);
-      if (confirmedCount < event.capacity) {
-        await updateRegistration(waitlisted[0].registration.id, { status: 'registered' });
+      // Fetch partner registration to get userId for audit
+      const allRegs = await getEventRegistrations(eventId);
+      const partnerReg = allRegs.find(r => r.registration.id === partnerRegId);
+      if (partnerReg) {
+        // Audit for partner — must be before deleteRegistration (cascade deletes it)
         await createAuditLogEntry({
-          registrationId: waitlisted[0].registration.id,
+          registrationId: partnerReg.registration.id,
           eventId,
-          userId: waitlisted[0].user.id,
-          oldStatus: 'waitlisted',
-          newStatus: 'registered',
-          action: 'approved',
-          actorId: null,
-          actorType: 'system',
+          userId: partnerReg.user.id,
+          oldStatus: partnerReg.registration.status,
+          newStatus: 'cancelled',
+          action: 'removed',
+          actorId: session.user.id,
+          actorType: 'user',
         });
+        await deleteRegistration(partnerReg.user.id, eventId);
       }
     }
   }
+
+  // Audit own cancellation — must be before deleteRegistration
+  await createAuditLogEntry({
+    registrationId: existing.id,
+    eventId,
+    userId: session.user.id,
+    oldStatus: existing.status,
+    newStatus: 'cancelled',
+    action: 'removed',
+    actorId: null,
+    actorType: 'user',
+  });
+
+  await deleteRegistration(session.user.id, eventId);
+
+  // Promote from waitlist, respecting pairs
+  await promoteFromWaitlist(eventId);
 
   revalidatePath(`/user/events/${eventId}`);
   revalidatePath(`/admin/events/${eventId}`);
@@ -242,6 +341,7 @@ function weightedSelect<T extends { score: number }>(pool: T[], slots: number): 
   }
   return selected;
 }
+
 
 export async function runLotteryDraft(eventId: string) {
   const session = await auth();
@@ -274,15 +374,54 @@ export async function runLotteryDraft(eventId: string) {
     );
 
     const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
-    const spots = Math.max(0, event.capacity - confirmedCount);
-    const pool = [...scored];
-    const selected = weightedSelect(pool, spots);
+    const availableSeats = Math.max(0, event.capacity - confirmedCount);
 
-    const selectedIds = new Set(selected.map(s => s.registration.id));
+    // Build lottery entries respecting +1 pairs (if feature enabled)
+    const lotteryPool: LotteryEntry[] = [];
+    const processedRegIds = new Set<string>();
+
+    if (event.plusOneEnabled) {
+      const pairings = await getAcceptedPairingsForEvent(eventId);
+      const entrantRegIds = new Set(entrants.map(e => e.registration.id));
+
+      for (const pairing of pairings) {
+        const inviterEntry = scored.find(e => e.registration.id === pairing.inviterRegistrationId);
+        const inviteeEntry = scored.find(e => e.registration.id === pairing.inviteeRegistrationId);
+        // Only treat as a pair if BOTH are pending_approval entrants
+        if (inviterEntry && inviteeEntry &&
+            entrantRegIds.has(pairing.inviterRegistrationId) &&
+            entrantRegIds.has(pairing.inviteeRegistrationId)) {
+          lotteryPool.push({ score: inviterEntry.score, seats: 2, isPair: true, inviterReg: inviterEntry, inviteeReg: inviteeEntry });
+          processedRegIds.add(pairing.inviterRegistrationId);
+          processedRegIds.add(pairing.inviteeRegistrationId);
+        }
+      }
+    }
+
+    // Add solo entrants (those not part of an active pair)
+    for (const entry of scored) {
+      if (!processedRegIds.has(entry.registration.id)) {
+        lotteryPool.push({ score: entry.score, seats: 1, isPair: false, reg: entry });
+      }
+    }
+
+    const pool = [...lotteryPool];
+    const selectedEntries = weightedSelectWithSeats(pool, availableSeats);
+
+    // Collect selected registration IDs
+    const selectedRegIds = new Set<string>();
+    for (const entry of selectedEntries) {
+      if (entry.isPair) {
+        selectedRegIds.add(entry.inviterReg.registration.id);
+        selectedRegIds.add(entry.inviteeReg.registration.id);
+      } else {
+        selectedRegIds.add(entry.reg.registration.id);
+      }
+    }
 
     await Promise.all(
       scored.map(async (entry) => {
-        const isSelected = selectedIds.has(entry.registration.id);
+        const isSelected = selectedRegIds.has(entry.registration.id);
         await updateRegistration(entry.registration.id, {
           status: isSelected ? 'draft_selected' : 'draft_rejected',
           lotteryPriorityScore: entry.score,
@@ -293,9 +432,11 @@ export async function runLotteryDraft(eventId: string) {
     revalidatePath(`/admin/events/${eventId}`);
     revalidatePath(`/user/events/${eventId}`);
 
+    const selectedScored = scored.filter(s => selectedRegIds.has(s.registration.id));
+    const rejectedScored = scored.filter(s => !selectedRegIds.has(s.registration.id));
     return {
-      selected: selected.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
-      rejected: pool.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
+      selected: selectedScored.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
+      rejected: rejectedScored.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
     };
   } catch (error) {
     // Reset lotteryStatus so admins can retry after a transient failure
@@ -318,6 +459,23 @@ export async function removeDraftSelected(registrationId: string, eventId: strin
   }
 
   await updateRegistration(registrationId, { status: 'draft_rejected' });
+
+  // If this registration is part of an accepted pair, also remove the partner
+  if (event.plusOneEnabled) {
+    const outgoing = await getOutgoingInvite(registrationId);
+    const incoming = await getIncomingInvite(registrationId);
+    const invite = outgoing || incoming;
+    if (invite && invite.status === 'accepted') {
+      const partnerRegId = invite.inviterRegistrationId === registrationId
+        ? invite.inviteeRegistrationId
+        : invite.inviterRegistrationId;
+      const partnerReg = regs.find(r => r.registration.id === partnerRegId);
+      if (partnerReg?.registration.status === 'draft_selected') {
+        await updateRegistration(partnerRegId, { status: 'draft_rejected' });
+      }
+    }
+  }
+
   revalidatePath(`/admin/events/${eventId}`);
 }
 
@@ -338,9 +496,35 @@ export async function promoteDraftRejected(registrationId: string, eventId: stri
   const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
   const openSlots = Math.max(0, event.capacity - confirmedCount - draftSelectedCount);
 
-  if (openSlots <= 0) throw new Error('No open slots available');
+  // Check if this registration is part of an accepted pair (both must be draft_rejected)
+  let partnerRegId: string | null = null;
+  if (event.plusOneEnabled) {
+    const outgoing = await getOutgoingInvite(registrationId);
+    const incoming = await getIncomingInvite(registrationId);
+    const invite = outgoing || incoming;
+    if (invite && invite.status === 'accepted') {
+      const candidatePartnerId = invite.inviterRegistrationId === registrationId
+        ? invite.inviteeRegistrationId
+        : invite.inviterRegistrationId;
+      const partnerReg = regs.find(r => r.registration.id === candidatePartnerId);
+      if (partnerReg?.registration.status === 'draft_rejected') {
+        partnerRegId = candidatePartnerId;
+      }
+    }
+  }
+
+  const slotsNeeded = partnerRegId ? 2 : 1;
+  if (openSlots < slotsNeeded) {
+    throw new Error(partnerRegId
+      ? 'Promoting this pair requires 2 open slots'
+      : 'No open slots available'
+    );
+  }
 
   await updateRegistration(registrationId, { status: 'draft_selected' });
+  if (partnerRegId) {
+    await updateRegistration(partnerRegId, { status: 'draft_selected' });
+  }
   revalidatePath(`/admin/events/${eventId}`);
 }
 
@@ -370,20 +554,56 @@ export async function rerollLottery(eventId: string) {
     })
   );
 
-  const pool = [...scored];
-  const newSelected = weightedSelect(pool, openSlots);
+  // Build pair-aware lottery entries for the re-roll
+  const rerollPool: LotteryEntry[] = [];
+  const processedRegIds = new Set<string>();
+
+  if (event.plusOneEnabled) {
+    const pairings = await getAcceptedPairingsForEvent(eventId);
+    const rejectedRegIds = new Set(draftRejected.map(r => r.registration.id));
+    for (const pairing of pairings) {
+      const inviterEntry = scored.find(e => e.registration.id === pairing.inviterRegistrationId);
+      const inviteeEntry = scored.find(e => e.registration.id === pairing.inviteeRegistrationId);
+      if (inviterEntry && inviteeEntry &&
+          rejectedRegIds.has(pairing.inviterRegistrationId) &&
+          rejectedRegIds.has(pairing.inviteeRegistrationId)) {
+        rerollPool.push({ score: inviterEntry.score, seats: 2, isPair: true, inviterReg: inviterEntry, inviteeReg: inviteeEntry });
+        processedRegIds.add(pairing.inviterRegistrationId);
+        processedRegIds.add(pairing.inviteeRegistrationId);
+      }
+    }
+  }
+  for (const entry of scored) {
+    if (!processedRegIds.has(entry.registration.id)) {
+      rerollPool.push({ score: entry.score, seats: 1, isPair: false, reg: entry });
+    }
+  }
+
+  const pool = [...rerollPool];
+  const newSelectedEntries = weightedSelectWithSeats(pool, openSlots);
+
+  const newSelectedRegIds = new Set<string>();
+  for (const entry of newSelectedEntries) {
+    if (entry.isPair) {
+      newSelectedRegIds.add(entry.inviterReg.registration.id);
+      newSelectedRegIds.add(entry.inviteeReg.registration.id);
+    } else {
+      newSelectedRegIds.add(entry.reg.registration.id);
+    }
+  }
 
   await Promise.all(
-    newSelected.map(async (entry) =>
-      updateRegistration(entry.registration.id, { status: 'draft_selected' })
-    )
+    scored
+      .filter(e => newSelectedRegIds.has(e.registration.id))
+      .map(entry => updateRegistration(entry.registration.id, { status: 'draft_selected' }))
   );
 
   revalidatePath(`/admin/events/${eventId}`);
 
+  const newlySelected = scored.filter(s => newSelectedRegIds.has(s.registration.id));
   return {
-    newlySelected: newSelected.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
-    remainingRejected: pool.length,
+    newlySelected: newlySelected.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
+    remainingRejected: scored.filter(s => !newSelectedRegIds.has(s.registration.id)).length,
     noOpenSlots: false,
   };
 }
@@ -617,10 +837,33 @@ export async function approveRegistration(registrationId: string, eventId: strin
 
   const reg = await getPendingRegistration(registrationId, eventId);
 
-  // Check capacity before approving
+  // Check if this registration is part of an accepted pair (both must be pending_approval)
+  let partnerReg: Awaited<ReturnType<typeof getPendingRegistration>> | null = null;
+  if (event.plusOneEnabled) {
+    const outgoing = await getOutgoingInvite(registrationId);
+    const incoming = await getIncomingInvite(registrationId);
+    const invite = outgoing || incoming;
+    if (invite && invite.status === 'accepted') {
+      const partnerRegId = invite.inviterRegistrationId === registrationId
+        ? invite.inviteeRegistrationId
+        : invite.inviterRegistrationId;
+      try {
+        partnerReg = await getPendingRegistration(partnerRegId, eventId);
+      } catch {
+        // Partner is not pending_approval — treat this registration as solo
+        partnerReg = null;
+      }
+    }
+  }
+
+  const slotsNeeded = partnerReg ? 2 : 1;
   const confirmedCount = await getRegistrationCount(eventId, ['registered', 'selected', 'checked_in']);
-  if (confirmedCount >= event.capacity) {
-    throw new Error('Event is at capacity');
+  const openSlots = event.capacity - confirmedCount;
+  if (openSlots < slotsNeeded) {
+    throw new Error(partnerReg
+      ? 'Approving this pair requires 2 open slots'
+      : 'Event is at capacity'
+    );
   }
 
   await updateRegistration(registrationId, { status: 'registered' });
@@ -635,6 +878,20 @@ export async function approveRegistration(registrationId: string, eventId: strin
     actorType: 'admin',
   });
 
+  if (partnerReg) {
+    await updateRegistration(partnerReg.registration.id, { status: 'registered' });
+    await createAuditLogEntry({
+      registrationId: partnerReg.registration.id,
+      eventId,
+      userId: partnerReg.user.id,
+      oldStatus: 'pending_approval',
+      newStatus: 'registered',
+      action: 'approved',
+      actorId: session.user.id,
+      actorType: 'admin',
+    });
+  }
+
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/user/events/${eventId}`);
 }
@@ -643,7 +900,29 @@ export async function denyRegistration(registrationId: string, eventId: string) 
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
+  const event = await getEventById(eventId);
+  if (!event) throw new Error('Event not found');
+
   const reg = await getPendingRegistration(registrationId, eventId);
+
+  // If part of an accepted pair, deny both
+  let partnerReg: Awaited<ReturnType<typeof getPendingRegistration>> | null = null;
+  if (event.plusOneEnabled) {
+    const outgoing = await getOutgoingInvite(registrationId);
+    const incoming = await getIncomingInvite(registrationId);
+    const invite = outgoing || incoming;
+    if (invite && invite.status === 'accepted') {
+      const partnerRegId = invite.inviterRegistrationId === registrationId
+        ? invite.inviteeRegistrationId
+        : invite.inviterRegistrationId;
+      try {
+        partnerReg = await getPendingRegistration(partnerRegId, eventId);
+      } catch {
+        partnerReg = null;
+      }
+    }
+  }
+
   await updateRegistration(registrationId, { status: 'rejected' });
   await createAuditLogEntry({
     registrationId,
@@ -655,6 +934,20 @@ export async function denyRegistration(registrationId: string, eventId: string) 
     actorId: session.user.id,
     actorType: 'admin',
   });
+
+  if (partnerReg) {
+    await updateRegistration(partnerReg.registration.id, { status: 'rejected' });
+    await createAuditLogEntry({
+      registrationId: partnerReg.registration.id,
+      eventId,
+      userId: partnerReg.user.id,
+      oldStatus: 'pending_approval',
+      newStatus: 'rejected',
+      action: 'denied',
+      actorId: session.user.id,
+      actorType: 'admin',
+    });
+  }
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/user/events/${eventId}`);
@@ -805,4 +1098,161 @@ export async function getRegistrationTimeline(registrationId: string) {
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
   return dbGetRegistrationAuditLog(registrationId);
+}
+
+// ============================================================================
+// +1 Invite Actions
+// ============================================================================
+
+/** Send a +1 invite to another registered user. */
+export async function invitePlusOne(eventId: string, inviteeUserId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error('Unauthorized');
+
+  const event = await getEventById(eventId);
+  if (!event || event.status !== 'open') throw new Error('Event not available');
+  if (!event.plusOneEnabled) throw new Error('+1 guests are not enabled for this event');
+  if (inviteeUserId === session.user.id) throw new Error('You cannot invite yourself');
+
+  const [inviterReg, inviteeReg] = await Promise.all([
+    getUserRegistration(session.user.id, eventId),
+    getUserRegistration(inviteeUserId, eventId),
+  ]);
+  if (!inviterReg) throw new Error('You must be registered for this event to invite a +1');
+  if (!inviteeReg) throw new Error('The person you are inviting must also be registered for this event');
+
+  // Check neither party already has an invite for this event
+  const [existingOutgoing, existingIncoming] = await Promise.all([
+    getOutgoingInvite(inviterReg.id),
+    getIncomingInvite(inviteeReg.id),
+  ]);
+  if (existingOutgoing) throw new Error('You already have an active +1 invite for this event');
+  const [inviterIncoming, inviteeOutgoing] = await Promise.all([
+    getIncomingInvite(inviterReg.id),
+    getOutgoingInvite(inviteeReg.id),
+  ]);
+  if (inviterIncoming) throw new Error('You already have an incoming +1 invite for this event');
+  if (existingIncoming || inviteeOutgoing) throw new Error('This person already has an active +1 invite for this event');
+
+  await createPlusOneInvite({
+    eventId,
+    inviterRegistrationId: inviterReg.id,
+    inviteeRegistrationId: inviteeReg.id,
+  });
+
+  revalidatePath(`/user/events/${eventId}`);
+}
+
+/** Accept a pending +1 invite (invitee only). */
+export async function acceptPlusOneInvite(inviteId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error('Unauthorized');
+
+  const invite = await getPlusOneInviteById(inviteId);
+  if (!invite || invite.status !== 'pending') throw new Error('Invite not found or already handled');
+
+  // Verify current user is the invitee
+  const inviteeReg = await getUserRegistration(session.user.id, invite.eventId);
+  if (!inviteeReg || inviteeReg.id !== invite.inviteeRegistrationId) {
+    throw new Error('You are not the recipient of this invite');
+  }
+
+  await updatePlusOneInviteStatus(inviteId, 'accepted');
+  revalidatePath(`/user/events/${invite.eventId}`);
+}
+
+/** Decline a pending +1 invite (invitee only). */
+export async function declinePlusOneInvite(inviteId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error('Unauthorized');
+
+  const invite = await getPlusOneInviteById(inviteId);
+  if (!invite || invite.status !== 'pending') throw new Error('Invite not found or already handled');
+
+  // Verify current user is the invitee
+  const inviteeReg = await getUserRegistration(session.user.id, invite.eventId);
+  if (!inviteeReg || inviteeReg.id !== invite.inviteeRegistrationId) {
+    throw new Error('You are not the recipient of this invite');
+  }
+
+  await deletePlusOneInvite(inviteId);
+  revalidatePath(`/user/events/${invite.eventId}`);
+}
+
+/** Cancel a pending outgoing invite (inviter only). */
+export async function cancelPlusOneInvite(inviteId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error('Unauthorized');
+
+  const invite = await getPlusOneInviteById(inviteId);
+  if (!invite || invite.status !== 'pending') throw new Error('Invite not found or already handled');
+
+  // Verify current user is the inviter
+  const inviterReg = await getUserRegistration(session.user.id, invite.eventId);
+  if (!inviterReg || inviterReg.id !== invite.inviterRegistrationId) {
+    throw new Error('You are not the sender of this invite');
+  }
+
+  await deletePlusOneInvite(inviteId);
+  revalidatePath(`/user/events/${invite.eventId}`);
+}
+
+/** Dissolve an accepted +1 pairing (either party can do this). */
+export async function dissolvePlusOnePairing(inviteId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error('Unauthorized');
+
+  const invite = await getPlusOneInviteById(inviteId);
+  if (!invite || invite.status !== 'accepted') throw new Error('Accepted pairing not found');
+
+  // Verify current user is either party
+  const userReg = await getUserRegistration(session.user.id, invite.eventId);
+  if (!userReg || (userReg.id !== invite.inviterRegistrationId && userReg.id !== invite.inviteeRegistrationId)) {
+    throw new Error('You are not part of this pairing');
+  }
+
+  await deletePlusOneInvite(inviteId);
+  revalidatePath(`/user/events/${invite.eventId}`);
+}
+
+/** Get registrations available to invite (registered members, not self, not already paired). */
+export async function getInvitableUsers(eventId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error('Unauthorized');
+
+  const regs = await getEventRegistrations(eventId);
+  const inviteRows = await Promise.all(
+    regs.map(async r => {
+      const [outgoing, incoming] = await Promise.all([
+        getOutgoingInvite(r.registration.id),
+        getIncomingInvite(r.registration.id),
+      ]);
+      return { regId: r.registration.id, outgoing, incoming };
+    })
+  );
+
+  // Build set of registration IDs that are involved in any invite:
+  // - any reg that has an outgoing or incoming invite (the reg itself is involved)
+  // - all parties named in those invite objects (to exclude both sides of a pairing)
+  const invitedRegIds = new Set<string>();
+  for (const { regId, outgoing, incoming } of inviteRows) {
+    if (outgoing || incoming) invitedRegIds.add(regId);
+    if (outgoing) {
+      invitedRegIds.add(outgoing.inviterRegistrationId);
+      invitedRegIds.add(outgoing.inviteeRegistrationId);
+    }
+    if (incoming) {
+      invitedRegIds.add(incoming.inviterRegistrationId);
+      invitedRegIds.add(incoming.inviteeRegistrationId);
+    }
+  }
+
+  return regs
+    .filter(r =>
+      r.user.id !== session.user.id &&
+      !invitedRegIds.has(r.registration.id) &&
+      // Only show confirmed-ish registrations: registered, pending_approval, waitlisted
+      ['registered', 'pending_approval', 'waitlisted'].includes(r.registration.status)
+    )
+    .map(r => ({ id: r.user.id, name: r.user.name, image: r.user.image }));
 }

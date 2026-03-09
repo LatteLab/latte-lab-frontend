@@ -26,13 +26,13 @@ import { StatusChangeDialog } from '@/components/admin/events/status-change-dial
 import {
   Users, XCircle, Trophy, BarChart3,
   UserPlus, CheckCircle, ClipboardCheck,
-  AlertTriangle, ArrowRight, Trash2, Pencil, ExternalLink,
+  AlertTriangle, ArrowRight, Trash2, Pencil, ExternalLink, Check,
 } from 'lucide-react';
 import { getRegistrationTimeline, getUserDetailForModal, removeRegistration } from '@/app/actions/events';
 import { statusColors, statusLabels } from '@/lib/types/event';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import type { Registration } from '@/lib/types/event';
+import type { Registration, EventQuestion } from '@/lib/types/event';
 
 // Timeline entry from the audit log query
 interface TimelineEntry {
@@ -155,6 +155,7 @@ function formatDateTime(date: Date): string {
 interface GuestDetailSheetProps {
   registration: Registration | null;
   eventId: string;
+  questions: EventQuestion[] | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -162,6 +163,7 @@ interface GuestDetailSheetProps {
 export function GuestDetailSheet({
   registration,
   eventId,
+  questions,
   open,
   onOpenChange,
 }: GuestDetailSheetProps) {
@@ -274,6 +276,39 @@ export function GuestDetailSheet({
                   {formatDateTime(reg.registration.createdAt)}
                 </p>
               </div>
+
+              {/* Registration Answers */}
+              {questions && questions.length > 0 && reg.registration.questionnaireAnswers && (
+                <div className="mt-6">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">Registration Answers</p>
+                  <div className="space-y-2">
+                    {questions.map((q) => {
+                      const answer = reg.registration.questionnaireAnswers?.[q.id];
+                      if (q.type === 'consent') {
+                        const yes = answer === true;
+                        return (
+                          <div key={q.id} className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground shrink-0 mr-4 max-w-[60%] leading-snug">{q.label}</span>
+                            <span className={`flex items-center gap-1 font-medium shrink-0 ${yes ? 'text-green-600' : 'text-muted-foreground'}`}>
+                              {yes ? (
+                                <><Check className="h-3.5 w-3.5" /> Yes</>
+                              ) : (
+                                <><XCircle className="h-3.5 w-3.5" /> No</>
+                              )}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={q.id} className="flex items-start justify-between text-sm gap-4">
+                          <span className="text-muted-foreground shrink-0">{q.label}</span>
+                          <span className="text-right font-medium">{(answer as string) || 'None provided'}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <Separator className="my-8" />
 
