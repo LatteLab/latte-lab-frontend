@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import sanitizeHtml from "sanitize-html";
+import { sanitize } from "@/lib/sanitize";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -213,7 +213,7 @@ export function EventOverview({
           </h3>
           <div
             className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground"
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(event.description) }}
+            dangerouslySetInnerHTML={{ __html: sanitize(event.description) }}
           />
         </div>
       )}
