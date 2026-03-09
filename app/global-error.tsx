@@ -2,6 +2,7 @@
 
 import posthog from 'posthog-js';
 import { useEffect } from 'react';
+import './globals.css';
 
 export default function GlobalError({
   error,
@@ -16,78 +17,31 @@ export default function GlobalError({
 
   return (
     <html lang="en">
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body
-        style={{
-          margin: 0,
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#09090b',
-          color: '#fafafa',
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          padding: '1rem',
-        }}
+        className="bg-amber-50/40 text-foreground antialiased dark:bg-stone-950"
+        style={{ fontFamily: '"Geist", system-ui, sans-serif' }}
       >
-        <span
-          style={{
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            color: '#f87171',
-            backgroundColor: 'rgba(248, 113, 113, 0.1)',
-            border: '1px solid rgba(248, 113, 113, 0.2)',
-            padding: '0.25rem 0.75rem',
-            borderRadius: '9999px',
-            letterSpacing: '0.05em',
-            textTransform: 'uppercase',
-            marginBottom: '1rem',
-          }}
-        >
-          {error.digest ? `Error ${error.digest}` : 'Oops'}
-        </span>
-
-        <h1
-          style={{
-            fontSize: '1.75rem',
-            fontWeight: 700,
-            margin: '0 0 0.75rem',
-            textAlign: 'center',
-          }}
-        >
-          Something went wrong
-        </h1>
-
-        <p
-          style={{
-            fontSize: '1rem',
-            color: '#a1a1aa',
-            maxWidth: '28rem',
-            textAlign: 'center',
-            margin: '0 0 2rem',
-            lineHeight: 1.6,
-          }}
-        >
-          An unexpected error occurred. Please try again or contact support if
-          the problem persists.
-        </p>
-
-        <button
-          onClick={reset}
-          style={{
-            padding: '0.625rem 2rem',
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            color: '#fafafa',
-            backgroundColor: 'transparent',
-            border: '1px solid #27272a',
-            borderRadius: '8px',
-            cursor: 'pointer',
-          }}
-        >
-          Try again
-        </button>
+        <div className="flex min-h-svh flex-col items-center justify-center gap-4 px-4 py-16 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/apple-icon.png" alt="Latte Lab" className="h-20 w-20 mb-2" />
+          <h2 className="text-xl font-semibold">Something went wrong</h2>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            An unexpected error occurred. Please try again or contact support if
+            the problem persists.
+          </p>
+          <button
+            onClick={reset}
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground cursor-pointer"
+          >
+            Try again
+          </button>
+        </div>
       </body>
     </html>
   );
