@@ -177,11 +177,11 @@ export async function cancelRegistration(eventId: string) {
 
   await deleteRegistration(session.user.id, eventId);
 
-  // Audit entry — will be cascade-deleted with the registration, but the waitlist
-  // promotion audit below survives since that registration persists
+  // Audit entry with null registrationId — the registration is deleted so a FK
+  // reference would either fail or be cascade-deleted. Null lets the entry survive.
   if (existing) {
     await createAuditLogEntry({
-      registrationId: existing.id,
+      registrationId: null,
       eventId,
       userId: session.user.id,
       oldStatus: existing.status,
