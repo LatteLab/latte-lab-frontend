@@ -44,7 +44,7 @@ export function CheckinList({
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
   const [isPending, startTransition] = useTransition();
   const [showClose, setShowClose] = useState(false);
-  const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(null);
+  const [selectedAttendee, setSelectedAttendee] = useState<Registration | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const checkedInCount = attendees.filter(a => a.registration.status === 'checked_in').length;
@@ -203,7 +203,7 @@ export function CheckinList({
                   type="button"
                   className="flex flex-1 items-center gap-3 min-w-0 rounded-md -m-1 p-1 transition-colors hover:bg-muted/50 active:bg-muted/70 text-left"
                   onClick={() => {
-                    setSelectedAttendee(attendee);
+                    setSelectedAttendee(attendee as Registration);
                     setSheetOpen(true);
                   }}
                 >
@@ -284,11 +284,14 @@ export function CheckinList({
       </Dialog>
 
       <GuestDetailSheet
-        registration={selectedAttendee as Registration | null}
+        registration={selectedAttendee}
         eventId={eventId}
         questions={questions}
         open={sheetOpen}
-        onOpenChange={setSheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) setSelectedAttendee(null);
+        }}
       />
     </div>
   );

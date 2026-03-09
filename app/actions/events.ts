@@ -273,7 +273,7 @@ export async function cancelRegistration(eventId: string, scope: 'me' | 'both' =
     const incoming = await getIncomingInvite(existing.id);
     const invite = outgoing || incoming;
 
-    if (invite) {
+    if (invite && invite.status === 'accepted') {
       const partnerRegId = invite.inviterRegistrationId === existing.id
         ? invite.inviteeRegistrationId
         : invite.inviterRegistrationId;
@@ -321,7 +321,6 @@ export async function cancelRegistration(eventId: string, scope: 'me' | 'both' =
   revalidatePath(`/user/events/${eventId}`);
   revalidatePath(`/admin/events/${eventId}`);
 }
-
 
 export async function runLotteryDraft(eventId: string) {
   const session = await auth();
