@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   title: "Latte Lab",
   description: "MIT's coffee science community — events, tastings, and more.",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://mit-latte-lab.vercel.app"
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://app.lattelab.org",
   ),
   openGraph: {
     title: "Latte Lab",
