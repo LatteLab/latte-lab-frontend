@@ -125,7 +125,9 @@ if (!session?.user) throw new Error("Unauthorized");
 
 **Auto-save before send:** When a client action (Send, Preview) triggers a server action that reads state from DB, always save current form state first. Otherwise the server uses stale data.
 
-**Audit logging:** Every server action that changes a registration status must call `createAuditLogEntry()` with the old/new status, action type, and actor info. For bulk operations, use `createAuditLogEntries()`. Always create the audit entry *before* any destructive operation (e.g. `deleteRegistration`) since cascade deletes will remove it.
+**Audit logging:** Every server action that changes a registration status must call `createAuditLogEntry()` with the old/new status, action type, and actor info. For bulk operations, use `createAuditLogEntries()`. For deletions: create audit entry *before* `deleteRegistration` so the FK check passes. Note: `registrationId` has `onDelete: cascade`, so the entry will be cascade-deleted too. If the audit must survive (e.g. user-initiated cancellation), pass `registrationId: null` instead.
+
+**Error boundaries:** Route-group `error.tsx` files (`(admin)`, `(user)`) use shared `components/error-boundary-content.tsx`. `app/global-error.tsx` replaces the root layout entirely — must import `globals.css` directly and load Geist font via `<link>` tag since `next/font` isn't available. All error boundaries report to PostHog via `posthog.captureException()`. Server-side errors captured in `instrumentation.ts` — use `posthog.flush()` (not await on `captureException`) to ensure delivery in serverless.
 
 ## Gotchas
 
@@ -136,3 +138,4 @@ if (!session?.user) throw new Error("Unauthorized");
 - Mobile-first: most users access on mobile. Always test layouts in narrow viewports. When reusing components in constrained containers (Sheets, modals, popovers), pass a `compact` prop to adapt layout — don't assume the full-page grid will fit.
 - Zsh glob: paths like `app/(admin)/` must be quoted in shell commands (`'app/(admin)/'`) or zsh interprets parens as glob patterns.
 - shadcn `SheetContent` has zero padding on the content body (only `SheetHeader` has `p-4`) and defaults to `w-3/4` on mobile. For full-screen mobile sheets, add `w-full` to the className. Add explicit `px-6` to content areas.
+- User portal background: `bg-amber-50/40 dark:bg-stone-950`. Latte Lab icon in nav: `Coffee` from lucide-react with `from-amber-600 to-orange-700` gradient. App icon files: `app/icon.svg` (raw), `app/apple-icon.png` (branded). Production URL: `https://app.lattelab.org`.

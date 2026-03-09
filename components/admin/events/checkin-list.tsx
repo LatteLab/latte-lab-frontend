@@ -276,6 +276,7 @@ export function CheckinList({
         registration={selectedAttendee}
         eventId={eventId}
         questions={questions}
+        pairing={null}
         open={sheetOpen}
         onOpenChange={(open) => {
           setSheetOpen(open);
