@@ -277,7 +277,7 @@ export function LotteryReview({
             <DialogTitle>Finalize Lottery</DialogTitle>
             <DialogDescription>
               This will confirm {draftSelected.length} selected and {draftRejected.length} rejected.
-              Lottery history will be recorded. This cannot be undone.
+              Lottery history will be recorded. You can run additional rounds later if spots open up.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -295,8 +295,7 @@ export function LotteryReview({
           <DialogHeader>
             <DialogTitle>Discard Lottery Draft</DialogTitle>
             <DialogDescription>
-              This will reset all {draftSelected.length + draftRejected.length} entries back to pending approval.
-              You can run the lottery again afterwards.
+              This will revert all {draftSelected.length + draftRejected.length} draft entries to their previous status.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

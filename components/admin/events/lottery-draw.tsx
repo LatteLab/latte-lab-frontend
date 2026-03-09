@@ -33,7 +33,7 @@ export function LotteryDraw({ eventId, entrantCount }: { eventId: string; entran
         className="gap-2"
       >
         <Sparkles className="h-3.5 w-3.5" />
-        Run Lottery ({entrantCount} pending)
+        Run Lottery ({entrantCount} eligible)
       </Button>
 
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
@@ -41,7 +41,7 @@ export function LotteryDraw({ eventId, entrantCount }: { eventId: string; entran
           <DialogHeader>
             <DialogTitle>Run Lottery Draw</DialogTitle>
             <DialogDescription>
-              This will create a draft selection from {entrantCount} pending requests using weighted random selection.
+              This will create a draft selection from {entrantCount} eligible registrations using weighted random selection.
               You&apos;ll be able to review, remove, and re-roll before finalizing.
               Priority scores: base 1.0, +0.5 per semester loss, -0.75 per semester win, -1.5 per no-show.
             </DialogDescription>

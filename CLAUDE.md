@@ -73,7 +73,9 @@ lib/
 │   └── storage.ts          # Upload/delete helpers for event covers + profile images
 ├── gradients.ts            # Gradient generation/parsing for event covers
 ├── validations/            # Zod schemas (events.ts, email.ts, profile.ts)
-└── utils.ts                # Utilities (cn helper)
+├── utils.ts                # Utilities (cn helper)
+└── utils/
+    └── lottery.ts           # Seat-aware weighted lottery (buildLotteryPool, weightedSelectWithSeats)
 ```
 
 ## Database Tables
@@ -82,18 +84,22 @@ lib/
 - `admin_whitelist` — Admin email whitelist
 - `events` — Event details (status: open/closed/completed, lotteryStatus: draft/finalized)
 - `event_registrations` — User registrations with status tracking
-- `lottery_history` — Lottery draw outcomes and priority scores
+- `lottery_history` — Lottery draw outcomes and priority scores (unique on `user_id, event_id`)
 - `semesters` — Academic semester tracking (auto-detected or admin override)
 - `email_blasts` — Email campaigns (draft/sending/sent/failed, audience filters as JSON)
 - `email_recipients` — Per-recipient delivery tracking (status via Resend webhooks)
 - `registration_audit_log` — Tracks every registration status change (actor, old/new status, action type)
+- `event_plus_one_invites` — Pair invites (pending/accepted); both FK columns cascade on registration delete
+- `events.questions` (JSON) — Per-event registration questionnaire definitions
+- `event_registrations.questionnaire_answers` (JSON) — User responses keyed by question ID
 
 ## Key Patterns
 
 **Lottery & registration flow:**
-- Registration statuses: `pending_approval` → lottery/manual → `selected` (lottery) or `registered` (FCFS/approved) → `checked_in` or `no_show`
+- Registration statuses: `pending_approval` → lottery/manual → `selected` (lottery) or `registered` (FCFS/approved) → `checked_in` or `no_show`. Lottery losers stay `pending_approval` (not `rejected`); `rejected` is only for manual admin rejection.
 - `selected` status is lottery-specific (set only by `finalizeLottery`). `registered` is for FCFS/manual approval. This distinction matters for no-show reconciliation.
-- `lotteryStatus` on events is a draft lock: only `'draft'` gates behavior. `'finalized'` is informational (multiple lottery rounds are supported).
+- `lotteryStatus` on events is a draft lock: only `'draft'` gates behavior. `'finalized'` allows re-running the lottery (multiple rounds supported). `claimLotteryDraftSlot` accepts both `null` and `finalized`.
+- `lottery_history` has a unique constraint on `(user_id, event_id)` — one entry per user per event. `upsertLotteryHistoryEntries` handles updates (e.g., lost → won on subsequent rounds).
 - `closeEvent()` is the reconciliation point: revokes lottery wins for no-shows (`selected` → `no_show`) and marks the event completed.
 - `changeRegistrationStatus()` also revokes lottery wins when moving a `selected` registration to a non-going status.
 - Priority score formula: `1.0 + losses*0.5 - wins*0.75 - noShows*1.5` — depends on accurate `lottery_history`, so wins must be revoked on no-show.
@@ -116,6 +122,12 @@ if (!session?.user) throw new Error("Unauthorized");
 ```
 
 **Every exported function in a `'use server'` file is a public HTTP endpoint.** Always add auth checks, even for read-only functions like `getSemesterData()`. Admin mutations must check `session.user.isAdmin`.
+
+**Plus-one pairing:**
+- Feature flag: `events.plusOneEnabled`. Pairs enter lottery as single `seats: 2` entry using inviter's score.
+- `lib/utils/lottery.ts` — seat-aware weighted selection (`buildLotteryPool` + `weightedSelectWithSeats`)
+- Declining/cancelling an invite deletes the row (no `declined` status). Cascade on both FK columns handles cleanup.
+- `cancelRegistration(eventId, scope)` supports `'me'` (solo) or `'both'` (pair). Pair-awareness threads through lottery, waitlist promotion, and approval flows.
 
 **Type derivation:** Derive shared types from Drizzle schema (`$inferSelect`) rather than manually redeclaring field subsets. See `lib/types/event.ts` for the `RegistrationRow`/`RegistrationWithStats`/`Registration` pattern.
 

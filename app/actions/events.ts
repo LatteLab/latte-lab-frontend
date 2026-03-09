@@ -13,7 +13,8 @@ import {
   getRegistrationCount,
   getEventRegistrations,
   computePriorityScore,
-  createLotteryHistoryEntries,
+  upsertLotteryHistoryEntries,
+  getEventLotteryParticipantIds,
   updateRegistration,
   bulkMarkNoShow,
   getEventByInviteCode,
@@ -328,10 +329,11 @@ export async function runLotteryDraft(eventId: string) {
 
   const event = await getEventById(eventId);
   if (!event || !event.requireApproval) throw new Error('Lottery only available for approval-required events');
-  if (event.lotteryStatus === 'finalized') throw new Error('Lottery has already been finalized');
+
+  const isRerun = event.lotteryStatus === 'finalized';
 
   // Atomically claim the draft slot — prevents two admins from running the lottery simultaneously.
-  // claimLotteryDraftSlot does UPDATE ... WHERE lottery_status IS NULL, which is atomic in PostgreSQL.
+  // claimLotteryDraftSlot does UPDATE ... WHERE lottery_status IS NULL OR 'finalized', which is atomic in PostgreSQL.
   const claimed = await claimLotteryDraftSlot(eventId);
   if (!claimed) throw new Error('A lottery draft is already in progress');
 
@@ -341,8 +343,8 @@ export async function runLotteryDraft(eventId: string) {
 
     if (entrants.length === 0) {
       // Reset so admins can retry after adding registrations
-      await dbUpdateEvent(eventId, { lotteryStatus: null });
-      throw new Error('No pending requests');
+      await dbUpdateEvent(eventId, { lotteryStatus: isRerun ? 'finalized' : null });
+      throw new Error('No eligible registrations');
     }
 
     const scored = await Promise.all(
@@ -393,7 +395,6 @@ export async function runLotteryDraft(eventId: string) {
     };
   } catch (error) {
     // Reset lotteryStatus and any draft registration statuses so admins can retry.
-    // Mirrors discardLotteryDraft: draft_selected/draft_rejected → pending_approval.
     const draftRegs = await getEventRegistrations(eventId);
     const draftEntrants = draftRegs.filter(r =>
       r.registration.status === 'draft_selected' || r.registration.status === 'draft_rejected'
@@ -405,7 +406,7 @@ export async function runLotteryDraft(eventId: string) {
           lotteryPriorityScore: null,
         })
       ),
-      dbUpdateEvent(eventId, { lotteryStatus: null }),
+      dbUpdateEvent(eventId, { lotteryStatus: isRerun ? 'finalized' : null }),
     ]);
     throw error;
   }
@@ -565,7 +566,7 @@ export async function finalizeLottery(eventId: string) {
 
   await Promise.all([
     ...draftSelected.map(r => updateRegistration(r.registration.id, { status: 'selected' })),
-    ...draftRejected.map(r => updateRegistration(r.registration.id, { status: 'rejected' })),
+    ...draftRejected.map(r => updateRegistration(r.registration.id, { status: 'pending_approval' })),
   ]);
 
   const semesterLabel = await getCurrentSemesterLabel();
@@ -583,7 +584,7 @@ export async function finalizeLottery(eventId: string) {
       semester: semesterLabel,
     })),
   ];
-  await createLotteryHistoryEntries(historyEntries);
+  await upsertLotteryHistoryEntries(historyEntries);
 
   const auditEntries = [
     ...draftSelected.map(r => ({
@@ -601,7 +602,7 @@ export async function finalizeLottery(eventId: string) {
       eventId,
       userId: r.user.id,
       oldStatus: 'draft_rejected',
-      newStatus: 'rejected',
+      newStatus: 'pending_approval',
       action: 'lottery_lost' as const,
       actorId: null as string | null,
       actorType: 'system',
@@ -622,7 +623,12 @@ export async function discardLotteryDraft(eventId: string) {
   const event = await getEventById(eventId);
   if (!event || event.lotteryStatus !== 'draft') throw new Error('No lottery draft in progress');
 
-  const regs = await getEventRegistrations(eventId);
+  const [regs, lotteryParticipants] = await Promise.all([
+    getEventRegistrations(eventId),
+    getEventLotteryParticipantIds(eventId),
+  ]);
+  const isRerun = lotteryParticipants.size > 0;
+
   const draftEntrants = regs.filter(r =>
     r.registration.status === 'draft_selected' || r.registration.status === 'draft_rejected'
   );
@@ -636,7 +642,7 @@ export async function discardLotteryDraft(eventId: string) {
     )
   );
 
-  await dbUpdateEvent(eventId, { lotteryStatus: null });
+  await dbUpdateEvent(eventId, { lotteryStatus: isRerun ? 'finalized' : null });
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/user/events/${eventId}`);
