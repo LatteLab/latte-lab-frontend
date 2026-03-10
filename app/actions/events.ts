@@ -13,7 +13,8 @@ import {
   getRegistrationCount,
   getEventRegistrations,
   computePriorityScore,
-  createLotteryHistoryEntries,
+  upsertLotteryHistoryEntries,
+  getEventLotteryParticipantIds,
   updateRegistration,
   bulkMarkNoShow,
   getEventByInviteCode,
@@ -33,13 +34,14 @@ import {
   getIncomingInvite,
   getPlusOneInviteById,
   getAcceptedPairingsForEvent,
+  getAllEventInvites,
   createPlusOneInvite,
   updatePlusOneInviteStatus,
   deletePlusOneInvite,
 } from '@/lib/db/event-queries';
 import { getUserById } from '@/lib/db/queries';
 import { createEventSchema, updateEventSchema } from '@/lib/validations/events';
-import { weightedSelectWithSeats, type LotteryEntry } from '@/lib/utils/lottery';
+import { weightedSelectWithSeats, buildLotteryPool } from '@/lib/utils/lottery';
 
 export async function createEventAction(formData: FormData) {
   const session = await auth();
@@ -272,7 +274,7 @@ export async function cancelRegistration(eventId: string, scope: 'me' | 'both' =
     const incoming = await getIncomingInvite(existing.id);
     const invite = outgoing || incoming;
 
-    if (invite) {
+    if (invite && invite.status === 'accepted') {
       const partnerRegId = invite.inviterRegistrationId === existing.id
         ? invite.inviteeRegistrationId
         : invite.inviterRegistrationId;
@@ -282,8 +284,10 @@ export async function cancelRegistration(eventId: string, scope: 'me' | 'both' =
       const partnerReg = allRegs.find(r => r.registration.id === partnerRegId);
       if (partnerReg) {
         // Audit for partner — must be before deleteRegistration (cascade deletes it)
+        // Use null registrationId — the registration is about to be deleted
+        // and cascade would remove the audit entry with it.
         await createAuditLogEntry({
-          registrationId: partnerReg.registration.id,
+          registrationId: null,
           eventId,
           userId: partnerReg.user.id,
           oldStatus: partnerReg.registration.status,
@@ -297,9 +301,10 @@ export async function cancelRegistration(eventId: string, scope: 'me' | 'both' =
     }
   }
 
-  // Audit own cancellation — must be before deleteRegistration
+  // Audit own cancellation — use null registrationId so the entry survives
+  // cascade delete of the registration.
   await createAuditLogEntry({
-    registrationId: existing.id,
+    registrationId: null,
     eventId,
     userId: session.user.id,
     oldStatus: existing.status,
@@ -318,41 +323,17 @@ export async function cancelRegistration(eventId: string, scope: 'me' | 'both' =
   revalidatePath(`/admin/events/${eventId}`);
 }
 
-/** Weighted random selection — picks `slots` entries from `pool` (mutates pool). */
-function weightedSelect<T extends { score: number }>(pool: T[], slots: number): T[] {
-  if (slots >= pool.length) {
-    const all = pool.splice(0);
-    return all;
-  }
-  const selected: T[] = [];
-  for (let i = 0; i < slots; i++) {
-    const totalWeight = pool.reduce((sum, e) => sum + e.score, 0);
-    let random = Math.random() * totalWeight;
-    let pickedIndex = pool.length - 1;
-    for (let j = 0; j < pool.length; j++) {
-      random -= pool[j].score;
-      if (random <= 0) {
-        pickedIndex = j;
-        break;
-      }
-    }
-    selected.push(pool[pickedIndex]);
-    pool.splice(pickedIndex, 1);
-  }
-  return selected;
-}
-
-
 export async function runLotteryDraft(eventId: string) {
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
 
   const event = await getEventById(eventId);
   if (!event || !event.requireApproval) throw new Error('Lottery only available for approval-required events');
-  if (event.lotteryStatus === 'finalized') throw new Error('Lottery has already been finalized');
+
+  const isRerun = event.lotteryStatus === 'finalized';
 
   // Atomically claim the draft slot — prevents two admins from running the lottery simultaneously.
-  // claimLotteryDraftSlot does UPDATE ... WHERE lottery_status IS NULL, which is atomic in PostgreSQL.
+  // claimLotteryDraftSlot does UPDATE ... WHERE lottery_status IS NULL OR 'finalized', which is atomic in PostgreSQL.
   const claimed = await claimLotteryDraftSlot(eventId);
   if (!claimed) throw new Error('A lottery draft is already in progress');
 
@@ -362,8 +343,8 @@ export async function runLotteryDraft(eventId: string) {
 
     if (entrants.length === 0) {
       // Reset so admins can retry after adding registrations
-      await dbUpdateEvent(eventId, { lotteryStatus: null });
-      throw new Error('No pending requests');
+      await dbUpdateEvent(eventId, { lotteryStatus: isRerun ? 'finalized' : null });
+      throw new Error('No eligible registrations');
     }
 
     const scored = await Promise.all(
@@ -377,35 +358,9 @@ export async function runLotteryDraft(eventId: string) {
     const availableSeats = Math.max(0, event.capacity - confirmedCount);
 
     // Build lottery entries respecting +1 pairs (if feature enabled)
-    const lotteryPool: LotteryEntry[] = [];
-    const processedRegIds = new Set<string>();
-
-    if (event.plusOneEnabled) {
-      const pairings = await getAcceptedPairingsForEvent(eventId);
-      const entrantRegIds = new Set(entrants.map(e => e.registration.id));
-
-      for (const pairing of pairings) {
-        const inviterEntry = scored.find(e => e.registration.id === pairing.inviterRegistrationId);
-        const inviteeEntry = scored.find(e => e.registration.id === pairing.inviteeRegistrationId);
-        // Only treat as a pair if BOTH are pending_approval entrants
-        if (inviterEntry && inviteeEntry &&
-            entrantRegIds.has(pairing.inviterRegistrationId) &&
-            entrantRegIds.has(pairing.inviteeRegistrationId)) {
-          lotteryPool.push({ score: inviterEntry.score, seats: 2, isPair: true, inviterReg: inviterEntry, inviteeReg: inviteeEntry });
-          processedRegIds.add(pairing.inviterRegistrationId);
-          processedRegIds.add(pairing.inviteeRegistrationId);
-        }
-      }
-    }
-
-    // Add solo entrants (those not part of an active pair)
-    for (const entry of scored) {
-      if (!processedRegIds.has(entry.registration.id)) {
-        lotteryPool.push({ score: entry.score, seats: 1, isPair: false, reg: entry });
-      }
-    }
-
-    const pool = [...lotteryPool];
+    const pairings = event.plusOneEnabled ? await getAcceptedPairingsForEvent(eventId) : [];
+    const entrantRegIds = new Set(entrants.map(e => e.registration.id));
+    const pool = buildLotteryPool(scored, pairings, entrantRegIds);
     const selectedEntries = weightedSelectWithSeats(pool, availableSeats);
 
     // Collect selected registration IDs
@@ -439,8 +394,20 @@ export async function runLotteryDraft(eventId: string) {
       rejected: rejectedScored.map(s => ({ name: s.user.name, email: s.user.email, score: s.score })),
     };
   } catch (error) {
-    // Reset lotteryStatus so admins can retry after a transient failure
-    await dbUpdateEvent(eventId, { lotteryStatus: null });
+    // Reset lotteryStatus and any draft registration statuses so admins can retry.
+    const draftRegs = await getEventRegistrations(eventId);
+    const draftEntrants = draftRegs.filter(r =>
+      r.registration.status === 'draft_selected' || r.registration.status === 'draft_rejected'
+    );
+    await Promise.all([
+      ...draftEntrants.map(r =>
+        updateRegistration(r.registration.id, {
+          status: 'pending_approval',
+          lotteryPriorityScore: null,
+        })
+      ),
+      dbUpdateEvent(eventId, { lotteryStatus: isRerun ? 'finalized' : null }),
+    ]);
     throw error;
   }
 }
@@ -555,31 +522,9 @@ export async function rerollLottery(eventId: string) {
   );
 
   // Build pair-aware lottery entries for the re-roll
-  const rerollPool: LotteryEntry[] = [];
-  const processedRegIds = new Set<string>();
-
-  if (event.plusOneEnabled) {
-    const pairings = await getAcceptedPairingsForEvent(eventId);
-    const rejectedRegIds = new Set(draftRejected.map(r => r.registration.id));
-    for (const pairing of pairings) {
-      const inviterEntry = scored.find(e => e.registration.id === pairing.inviterRegistrationId);
-      const inviteeEntry = scored.find(e => e.registration.id === pairing.inviteeRegistrationId);
-      if (inviterEntry && inviteeEntry &&
-          rejectedRegIds.has(pairing.inviterRegistrationId) &&
-          rejectedRegIds.has(pairing.inviteeRegistrationId)) {
-        rerollPool.push({ score: inviterEntry.score, seats: 2, isPair: true, inviterReg: inviterEntry, inviteeReg: inviteeEntry });
-        processedRegIds.add(pairing.inviterRegistrationId);
-        processedRegIds.add(pairing.inviteeRegistrationId);
-      }
-    }
-  }
-  for (const entry of scored) {
-    if (!processedRegIds.has(entry.registration.id)) {
-      rerollPool.push({ score: entry.score, seats: 1, isPair: false, reg: entry });
-    }
-  }
-
-  const pool = [...rerollPool];
+  const pairings = event.plusOneEnabled ? await getAcceptedPairingsForEvent(eventId) : [];
+  const rejectedRegIds = new Set(draftRejected.map(r => r.registration.id));
+  const pool = buildLotteryPool(scored, pairings, rejectedRegIds);
   const newSelectedEntries = weightedSelectWithSeats(pool, openSlots);
 
   const newSelectedRegIds = new Set<string>();
@@ -621,7 +566,7 @@ export async function finalizeLottery(eventId: string) {
 
   await Promise.all([
     ...draftSelected.map(r => updateRegistration(r.registration.id, { status: 'selected' })),
-    ...draftRejected.map(r => updateRegistration(r.registration.id, { status: 'rejected' })),
+    ...draftRejected.map(r => updateRegistration(r.registration.id, { status: 'pending_approval' })),
   ]);
 
   const semesterLabel = await getCurrentSemesterLabel();
@@ -639,7 +584,7 @@ export async function finalizeLottery(eventId: string) {
       semester: semesterLabel,
     })),
   ];
-  await createLotteryHistoryEntries(historyEntries);
+  await upsertLotteryHistoryEntries(historyEntries);
 
   const auditEntries = [
     ...draftSelected.map(r => ({
@@ -657,7 +602,7 @@ export async function finalizeLottery(eventId: string) {
       eventId,
       userId: r.user.id,
       oldStatus: 'draft_rejected',
-      newStatus: 'rejected',
+      newStatus: 'pending_approval',
       action: 'lottery_lost' as const,
       actorId: null as string | null,
       actorType: 'system',
@@ -678,7 +623,12 @@ export async function discardLotteryDraft(eventId: string) {
   const event = await getEventById(eventId);
   if (!event || event.lotteryStatus !== 'draft') throw new Error('No lottery draft in progress');
 
-  const regs = await getEventRegistrations(eventId);
+  const [regs, lotteryParticipants] = await Promise.all([
+    getEventRegistrations(eventId),
+    getEventLotteryParticipantIds(eventId),
+  ]);
+  const isRerun = lotteryParticipants.size > 0;
+
   const draftEntrants = regs.filter(r =>
     r.registration.status === 'draft_selected' || r.registration.status === 'draft_rejected'
   );
@@ -692,7 +642,7 @@ export async function discardLotteryDraft(eventId: string) {
     )
   );
 
-  await dbUpdateEvent(eventId, { lotteryStatus: null });
+  await dbUpdateEvent(eventId, { lotteryStatus: isRerun ? 'finalized' : null });
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/user/events/${eventId}`);
@@ -803,8 +753,10 @@ export async function removeRegistration(registrationId: string, eventId: string
   const reg = regs.find(r => r.registration.id === registrationId);
   if (!reg) throw new Error('Registration not found');
 
+  // Use null registrationId so the audit entry survives cascade delete
+  // of the registration.
   await createAuditLogEntry({
-    registrationId,
+    registrationId: null,
     eventId,
     userId: reg.user.id,
     oldStatus: reg.registration.status,
@@ -1220,31 +1172,17 @@ export async function getInvitableUsers(eventId: string) {
   const session = await auth();
   if (!session?.user) throw new Error('Unauthorized');
 
-  const regs = await getEventRegistrations(eventId);
-  const inviteRows = await Promise.all(
-    regs.map(async r => {
-      const [outgoing, incoming] = await Promise.all([
-        getOutgoingInvite(r.registration.id),
-        getIncomingInvite(r.registration.id),
-      ]);
-      return { regId: r.registration.id, outgoing, incoming };
-    })
-  );
+  const [regs, allInvites] = await Promise.all([
+    getEventRegistrations(eventId),
+    getAllEventInvites(eventId),
+  ]);
 
-  // Build set of registration IDs that are involved in any invite:
-  // - any reg that has an outgoing or incoming invite (the reg itself is involved)
-  // - all parties named in those invite objects (to exclude both sides of a pairing)
+  // Build set of registration IDs that are involved in any invite
+  // (both sides of every invite are excluded from the invitable list)
   const invitedRegIds = new Set<string>();
-  for (const { regId, outgoing, incoming } of inviteRows) {
-    if (outgoing || incoming) invitedRegIds.add(regId);
-    if (outgoing) {
-      invitedRegIds.add(outgoing.inviterRegistrationId);
-      invitedRegIds.add(outgoing.inviteeRegistrationId);
-    }
-    if (incoming) {
-      invitedRegIds.add(incoming.inviterRegistrationId);
-      invitedRegIds.add(incoming.inviteeRegistrationId);
-    }
+  for (const invite of allInvites) {
+    invitedRegIds.add(invite.inviterRegistrationId);
+    invitedRegIds.add(invite.inviteeRegistrationId);
   }
 
   return regs

@@ -1,4 +1,4 @@
-import DOMPurify from 'isomorphic-dompurify';
+import { sanitize } from '@/lib/sanitize';
 
 function escapeHtml(s: string): string {
   return s
@@ -14,7 +14,7 @@ function escapeHtml(s: string): string {
  * Returns a complete HTML email string ready to send via Resend.
  */
 export function renderBlastEmail(content: string): string {
-  const sanitized = DOMPurify.sanitize(content);
+  const sanitized = sanitize(content);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

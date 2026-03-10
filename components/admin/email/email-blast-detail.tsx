@@ -19,7 +19,7 @@ import { sendEmailBlastAction, deleteEmailBlastAction } from '@/app/actions/emai
 import { toast } from 'sonner';
 import { Pencil, Send, Trash2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import DOMPurify from 'isomorphic-dompurify';
+import { sanitize } from '@/lib/sanitize';
 import type { EmailBlast } from '@/lib/db/schema';
 import type { RecipientWithUser } from '@/lib/types/email';
 import { blastStatusColors, recipientStatusColors } from '@/lib/types/email';
@@ -192,8 +192,8 @@ export function EmailBlastDetail({ blast, recipients, senderName }: EmailBlastDe
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">Content Preview</h3>
         <div
-          className="rounded-lg border p-4 prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(blast.bodyTemplate || blast.body) }}
+          className="rounded-lg border p-4 prose prose-sm dark:prose-invert max-w-none"
+          dangerouslySetInnerHTML={{ __html: sanitize(blast.bodyTemplate || blast.body) }}
         />
       </div>
 

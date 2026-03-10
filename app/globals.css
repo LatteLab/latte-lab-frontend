@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@plugin "@tailwindcss/typography";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -119,6 +121,68 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Luma-inspired event description typography */
+.event-description {
+  --tw-prose-body: var(--foreground);
+  font-weight: 450;
+  line-height: 1.75;
+}
+
+.event-description p {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+}
+
+.event-description h1 {
+  font-size: 1.75em;
+  font-weight: 800;
+  margin-top: 1.75em;
+  margin-bottom: 0.75em;
+  letter-spacing: -0.02em;
+}
+
+.event-description h2 {
+  font-size: 1.4em;
+  font-weight: 700;
+  margin-top: 1.75em;
+  margin-bottom: 0.65em;
+  letter-spacing: -0.015em;
+}
+
+.event-description h3 {
+  font-size: 1.15em;
+  font-weight: 700;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.event-description ul,
+.event-description ol {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  padding-left: 1.5em;
+}
+
+.event-description li {
+  margin-top: 0.65em;
+  margin-bottom: 0.65em;
+}
+
+.event-description a {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1.5px;
+}
+
+.event-description a:hover {
+  text-decoration-thickness: 2.5px;
+}
+
+.event-description strong {
+  font-weight: 700;
 }
 
 /* Subtle warm dot grid for user portal backgrounds */

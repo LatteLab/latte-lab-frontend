@@ -8,12 +8,14 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { updateProfile } from '@/app/actions/profile';
 import { useTransition, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import type { User } from '@/lib/db/schema';
 import { ProfileImageEditor } from '@/components/user/profile-image-editor';
 
 export function ProfileForm({ user }: { user: User }) {
   const [isPending, startTransition] = useTransition();
+  const { update: updateSession } = useSession();
   const [isVisibleInDirectory, setIsVisibleInDirectory] = useState(user.isVisibleInDirectory ?? true);
   const [hidePhone, setHidePhone] = useState(user.hidePhone ?? false);
 
@@ -29,6 +31,7 @@ export function ProfileForm({ user }: { user: User }) {
     startTransition(async () => {
       try {
         await updateProfile(formData);
+        await updateSession();
         toast.success('Profile updated');
       } catch {
         toast.error('Failed to update profile');
@@ -44,14 +47,19 @@ export function ProfileForm({ user }: { user: User }) {
         userName={user.name}
       />
 
+      <div className="space-y-2">
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" value={user.email || ''} disabled className="bg-muted" />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="major">Major</Label>
           <Input id="major" name="major" defaultValue={user.major || ''} placeholder="e.g. Computer Science" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="classYear">Class Year</Label>
-          <Input id="classYear" name="classYear" defaultValue={user.classYear || ''} placeholder="e.g. 2026" />
+          <Label htmlFor="classYear">Year / Department</Label>
+          <Input id="classYear" name="classYear" defaultValue={user.classYear || ''} placeholder="e.g. 2026, PhD, MEng 2028" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="phone">Phone</Label>
@@ -70,7 +78,7 @@ export function ProfileForm({ user }: { user: User }) {
 
       <div className="space-y-2">
         <Label htmlFor="bio">Bio</Label>
-        <Textarea id="bio" name="bio" defaultValue={user.bio || ''} placeholder="Tell us about yourself..." rows={4} />
+        <Textarea id="bio" name="bio" defaultValue={user.bio || ''} placeholder="e.g. I'm a junior studying Course 6, graduating in 2026. From Seattle, always rating food for my Beli, cafe hopping, and trying every latte art tutorial I can find." rows={4} />
       </div>
 
       <Separator />

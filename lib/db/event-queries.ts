@@ -266,7 +266,7 @@ export async function createRegistrationWithCapacityCheck(data: {
 export async function claimLotteryDraftSlot(eventId: string): Promise<boolean> {
   const [claimed] = await db.update(events)
     .set({ lotteryStatus: 'draft' })
-    .where(and(eq(events.id, eventId), isNull(events.lotteryStatus)))
+    .where(and(eq(events.id, eventId), or(isNull(events.lotteryStatus), eq(events.lotteryStatus, 'finalized'))))
     .returning({ id: events.id });
   return !!claimed;
 }
@@ -387,11 +387,16 @@ export async function computePriorityScore(userId: string): Promise<number> {
   return Math.max(raw, 0.1);
 }
 
-export async function createLotteryHistoryEntries(
+export async function upsertLotteryHistoryEntries(
   entries: { userId: string; eventId: string; outcome: 'won' | 'lost'; semester?: string | null }[]
 ) {
   if (entries.length === 0) return;
-  await db.insert(lotteryHistory).values(entries);
+  await db.insert(lotteryHistory)
+    .values(entries)
+    .onConflictDoUpdate({
+      target: [lotteryHistory.userId, lotteryHistory.eventId],
+      set: { outcome: sql`excluded.outcome`, semester: sql`excluded.semester` },
+    });
 }
 
 export async function deleteLotteryWins(eventId: string, userIds: string[]) {
@@ -403,6 +408,13 @@ export async function deleteLotteryWins(eventId: string, userIds: string[]) {
       eq(lotteryHistory.outcome, 'won')
     )
   );
+}
+
+export async function getEventLotteryParticipantIds(eventId: string): Promise<Set<string>> {
+  const rows = await db.selectDistinct({ userId: lotteryHistory.userId })
+    .from(lotteryHistory)
+    .where(eq(lotteryHistory.eventId, eventId));
+  return new Set(rows.map(r => r.userId));
 }
 
 // ============================================================================
@@ -541,6 +553,8 @@ export async function updateUserProfile(userId: string, data: {
   location?: string | null;
   semesterStatus?: string | null;
   image?: string | null;
+  isVisibleInDirectory?: boolean;
+  hidePhone?: boolean;
 }) {
   const [user] = await db.update(users)
     .set({ ...data, updatedAt: new Date() })
@@ -687,6 +701,12 @@ export async function getPlusOneInviteById(id: string): Promise<EventPlusOneInvi
     .where(eq(eventPlusOneInvites.id, id))
     .limit(1);
   return row || null;
+}
+
+/** All invites for an event (any status). Used to bulk-check invite involvement. */
+export async function getAllEventInvites(eventId: string): Promise<EventPlusOneInvite[]> {
+  return db.select().from(eventPlusOneInvites)
+    .where(eq(eventPlusOneInvites.eventId, eventId));
 }
 
 /** All accepted pairings for an event (used by lottery + waitlist logic). */

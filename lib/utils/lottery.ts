@@ -19,6 +19,44 @@ export type LotteryEntry =
   | { score: number; seats: 1; isPair: false; reg: RegistrationRef }
   | { score: number; seats: 2; isPair: true; inviterReg: RegistrationRef; inviteeReg: RegistrationRef };
 
+export type ScoredRegistration = RegistrationRef & { score: number };
+
+/**
+ * Build a pair-aware lottery pool from scored registrations and accepted pairings.
+ *
+ * If a pairing exists where both inviter and invitee are in `eligibleRegIds`,
+ * they enter as a single 2-seat entry using the inviter's score.  All remaining
+ * eligible registrations enter as solo 1-seat entries.
+ */
+export function buildLotteryPool(
+  scored: ScoredRegistration[],
+  pairings: { inviterRegistrationId: string; inviteeRegistrationId: string }[],
+  eligibleRegIds: Set<string>,
+): LotteryEntry[] {
+  const pool: LotteryEntry[] = [];
+  const processedRegIds = new Set<string>();
+
+  for (const pairing of pairings) {
+    const inviterEntry = scored.find(e => e.registration.id === pairing.inviterRegistrationId);
+    const inviteeEntry = scored.find(e => e.registration.id === pairing.inviteeRegistrationId);
+    if (inviterEntry && inviteeEntry &&
+        eligibleRegIds.has(pairing.inviterRegistrationId) &&
+        eligibleRegIds.has(pairing.inviteeRegistrationId)) {
+      pool.push({ score: inviterEntry.score, seats: 2, isPair: true, inviterReg: inviterEntry, inviteeReg: inviteeEntry });
+      processedRegIds.add(pairing.inviterRegistrationId);
+      processedRegIds.add(pairing.inviteeRegistrationId);
+    }
+  }
+
+  for (const entry of scored) {
+    if (!processedRegIds.has(entry.registration.id)) {
+      pool.push({ score: entry.score, seats: 1, isPair: false, reg: entry });
+    }
+  }
+
+  return pool;
+}
+
 export function weightedSelectWithSeats(
   pool: LotteryEntry[],
   availableSeats: number,

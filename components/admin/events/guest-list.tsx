@@ -80,15 +80,15 @@ export function GuestList({
 
   const hasDraft = event.lotteryStatus === "draft";
 
-  // Build map: registrationId → partner name for displaying pair badges
+  // Build map: registrationId → partner info for badges + detail sheet
   const pairingBadgeMap = useMemo(() => {
-    const map = new Map<string, { partnerName: string | null; isInviter: boolean }>();
+    const map = new Map<string, { partnerName: string | null; partnerImage: string | null; isInviter: boolean }>();
     for (const pairing of pairings) {
       const inviterReg = registrations.find(r => r.registration.id === pairing.inviterRegistrationId);
       const inviteeReg = registrations.find(r => r.registration.id === pairing.inviteeRegistrationId);
       if (inviterReg && inviteeReg) {
-        map.set(pairing.inviterRegistrationId, { partnerName: inviteeReg.user.name, isInviter: true });
-        map.set(pairing.inviteeRegistrationId, { partnerName: inviterReg.user.name, isInviter: false });
+        map.set(pairing.inviterRegistrationId, { partnerName: inviteeReg.user.name, partnerImage: inviteeReg.user.image, isInviter: true });
+        map.set(pairing.inviteeRegistrationId, { partnerName: inviterReg.user.name, partnerImage: inviterReg.user.image, isInviter: false });
       }
     }
     return map;
@@ -371,17 +371,19 @@ export function GuestList({
                     </div>
                   )}
                   {/* +1 pairing badge */}
-                  {pairingBadgeMap.has(registration.id) && (
-                    <Badge
-                      variant="outline"
-                      className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20 hidden sm:flex shrink-0"
-                      title={pairingBadgeMap.get(registration.id)?.isInviter
-                        ? `+1: ${pairingBadgeMap.get(registration.id)?.partnerName}`
-                        : `+1 of ${pairingBadgeMap.get(registration.id)?.partnerName}`}
-                    >
-                      {pairingBadgeMap.get(registration.id)?.isInviter ? "+1" : "guest"}
-                    </Badge>
-                  )}
+                  {pairingBadgeMap.has(registration.id) && (() => {
+                    const pairing = pairingBadgeMap.get(registration.id)!;
+                    const firstName = pairing.partnerName?.split(' ')[0] || 'Unknown';
+                    return (
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20 shrink-0"
+                      >
+                        <span className="sm:hidden">{pairing.isInviter ? '+1' : 'guest'}</span>
+                        <span className="hidden sm:inline">{pairing.isInviter ? `+1 with ${firstName}` : `guest of ${firstName}`}</span>
+                      </Badge>
+                    );
+                  })()}
                 </div>
                 <div
                   className="flex items-center gap-2 ml-2"
@@ -452,6 +454,7 @@ export function GuestList({
         registration={selectedRegistration}
         eventId={event.id}
         questions={event.questions ?? null}
+        pairing={selectedRegistration ? pairingBadgeMap.get(selectedRegistration.registration.id) ?? null : null}
         open={modalOpen}
         onOpenChange={setModalOpen}
       />
