@@ -14,7 +14,9 @@ const nextConfig: NextConfig = {
 };
 
 const hasPostHogSourceMaps =
-  process.env.POSTHOG_API_KEY && process.env.POSTHOG_PROJECT_ID;
+  process.env.CI &&
+  process.env.POSTHOG_API_KEY &&
+  process.env.POSTHOG_PROJECT_ID;
 
 export default hasPostHogSourceMaps
   ? withPostHogConfig(nextConfig, {
