@@ -23,9 +23,10 @@ import {
   sendEmailBlastAction,
   sendPreviewEmailAction,
   getEmailBlastDetailAction,
+  getAudienceEmailsAction,
 } from "@/app/actions/email";
 import { toast } from "sonner";
-import { Save, Send, Eye, Loader2 } from "lucide-react";
+import { Save, Send, Eye, Loader2, Mail } from "lucide-react";
 import type { AudienceFilter } from "@/lib/types/email";
 
 interface EmailComposerProps {
@@ -158,6 +159,49 @@ export function EmailComposer({
     });
   };
 
+  const handleOpenInOutlook = () => {
+    if (!subject.trim() || !bodyHtml.trim()) {
+      toast.error("Subject and body are required");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const saved = await saveEmailBlastAction({
+          id: blastId || undefined,
+          subject,
+          bodyTemplate: bodyHtml,
+          audienceType: audienceFilter.type,
+          audienceFilters: audienceFilter,
+        });
+        setBlastId(saved.id);
+
+        const emails = await getAudienceEmailsAction(audienceFilter);
+
+        const plainText = bodyHtml
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+
+        const url =
+          `mailto:lattelab-exec@mit.edu` +
+          `?subject=${encodeURIComponent(subject)}` +
+          `&cc=${encodeURIComponent(emails.join(','))}` +
+          `&body=${encodeURIComponent(plainText)}`;
+
+        window.location.href = url;
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to open Outlook"
+        );
+      }
+    });
+  };
+
   const handleSendBlast = () => {
     if (!subject.trim() || !bodyHtml.trim()) {
       toast.error("Subject and body are required");
@@ -254,6 +298,16 @@ export function EmailComposer({
         >
           <Eye className="h-4 w-4 mr-1.5" />
           Send Preview to Me
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleOpenInOutlook}
+          disabled={isPending}
+        >
+          <Mail className="h-4 w-4 mr-1.5" />
+          Open in Outlook
         </Button>
 
         <AlertDialog>
