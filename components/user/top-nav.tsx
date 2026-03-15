@@ -28,7 +28,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { title: 'Events', url: '/user/events', icon: Calendar },
+  { title: 'My Events', url: '/user/events', icon: Calendar },
   { title: 'Discover', url: '/user/discover', icon: Compass },
   { title: 'Directory', url: '/user/directory', icon: Users },
 ];
