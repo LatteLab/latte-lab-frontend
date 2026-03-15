@@ -58,6 +58,7 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@posthog/cli",
       "esbuild",
       "sharp",
       "unrs-resolver"

@@ -29,6 +29,7 @@ import Link from "next/link";
 import type { Event } from "@/lib/db/schema";
 import type { Registration } from "@/lib/types/event";
 import { statusColors } from "@/lib/types/event";
+import { SendInviteButton } from "@/components/admin/events/send-invite-button";
 
 export function EventOverview({
   event,
@@ -47,6 +48,10 @@ export function EventOverview({
   const goingCount = registrations.filter((r) =>
     goingStatuses.includes(r.registration.status)
   ).length;
+
+  const inviteEmails = registrations
+    .filter((r) => ['registered', 'selected'].includes(r.registration.status) && r.user.email)
+    .map((r) => r.user.email as string);
   const pendingCount = registrations.filter(
     (r) => r.registration.status === "pending_approval"
   ).length;
@@ -148,6 +153,7 @@ export function EventOverview({
             Event Page
           </Button>
         </Link>
+        <SendInviteButton event={event} emails={inviteEmails} />
       </div>
 
       {/* Event Preview */}

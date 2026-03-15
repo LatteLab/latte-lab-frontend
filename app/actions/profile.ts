@@ -2,9 +2,11 @@
 
 import { auth } from '@/auth';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { getUserById } from '@/lib/db/queries';
 import { updateUserProfile } from '@/lib/db/event-queries';
 import { updateProfileSchema, updateProfileImageSchema } from '@/lib/validations/profile';
+import { z } from 'zod';
 
 export async function updateProfile(formData: FormData) {
   const session = await auth();
@@ -43,6 +45,32 @@ export async function updateProfile(formData: FormData) {
 
   revalidatePath('/user/settings');
   revalidatePath('/user/directory');
+}
+
+const onboardingSchema = z.object({
+  major: z.string().min(1, 'Major is required').max(100),
+  classYear: z.string().min(1, 'Class year is required').max(50),
+  interests: z.string().min(1, 'Interests are required').max(300),
+  phone: z.string().max(20).regex(/^[+\d\s\-(). ]*$/, 'Invalid phone number format').optional(),
+  bio: z.string().max(500).optional(),
+});
+
+export async function completeOnboardingAction(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error('Unauthorized');
+
+  const parsed = onboardingSchema.parse(Object.fromEntries(formData));
+
+  await updateUserProfile(session.user.id, {
+    major: parsed.major,
+    classYear: parsed.classYear,
+    interests: parsed.interests,
+    phone: parsed.phone || null,
+    bio: parsed.bio || null,
+  });
+
+  revalidatePath('/user/onboarding');
+  redirect('/user/events');
 }
 
 export async function updateProfileImage(imageUrl: string) {

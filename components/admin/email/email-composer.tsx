@@ -23,10 +23,12 @@ import {
   sendEmailBlastAction,
   sendPreviewEmailAction,
   getEmailBlastDetailAction,
+  getAudienceEmailsAction,
 } from "@/app/actions/email";
 import { toast } from "sonner";
-import { Save, Send, Eye, Loader2 } from "lucide-react";
+import { Save, Send, Eye, Loader2, Mail } from "lucide-react";
 import type { AudienceFilter } from "@/lib/types/email";
+import { stripHtml } from "@/lib/utils";
 
 interface EmailComposerProps {
   initialAudienceType?: string;
@@ -158,6 +160,41 @@ export function EmailComposer({
     });
   };
 
+  const handleOpenInOutlook = () => {
+    if (!subject.trim() || !bodyHtml.trim()) {
+      toast.error("Subject and body are required");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const [saved, emails] = await Promise.all([
+          saveEmailBlastAction({
+            id: blastId || undefined,
+            subject,
+            bodyTemplate: bodyHtml,
+            audienceType: audienceFilter.type,
+            audienceFilters: audienceFilter,
+          }),
+          getAudienceEmailsAction(audienceFilter),
+        ]);
+        setBlastId(saved.id);
+
+        const url =
+          `mailto:lattelab-exec@mit.edu` +
+          `?subject=${encodeURIComponent(subject)}` +
+          `&cc=${encodeURIComponent(emails.join(','))}` +
+          `&body=${encodeURIComponent(stripHtml(bodyHtml))}`;
+
+        window.location.href = url;
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to open Outlook"
+        );
+      }
+    });
+  };
+
   const handleSendBlast = () => {
     if (!subject.trim() || !bodyHtml.trim()) {
       toast.error("Subject and body are required");
@@ -254,6 +291,16 @@ export function EmailComposer({
         >
           <Eye className="h-4 w-4 mr-1.5" />
           Send Preview to Me
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleOpenInOutlook}
+          disabled={isPending}
+        >
+          <Mail className="h-4 w-4 mr-1.5" />
+          Open in Outlook
         </Button>
 
         <AlertDialog>

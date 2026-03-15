@@ -293,3 +293,11 @@ export async function getEmailBlastDetailAction(blastId: string) {
   ]);
   return { blast, recipients, senderName: sender?.name || null };
 }
+
+export async function getAudienceEmailsAction(filters: import('@/lib/types/email').AudienceFilter): Promise<string[]> {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const recipients = await resolveAudience(filters);
+  return recipients.map(r => r.email).filter((e): e is string => e !== null);
+}

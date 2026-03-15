@@ -29,6 +29,18 @@ export const proxy = auth((req) => {
     return NextResponse.redirect(new URL("/user", req.url));
   }
 
+  // Force incomplete profiles through onboarding
+  const isOnboarding = pathname === "/user/onboarding";
+  if (
+    isLoggedIn &&
+    !req.auth?.user?.isAdmin &&
+    req.auth?.user?.profileComplete === false &&
+    pathname.startsWith("/user") &&
+    !isOnboarding
+  ) {
+    return NextResponse.redirect(new URL("/user/onboarding", req.url));
+  }
+
   return NextResponse.next();
 });
 
