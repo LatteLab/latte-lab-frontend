@@ -3,21 +3,11 @@
 import { Button } from '@/components/ui/button';
 import { Mail } from 'lucide-react';
 import type { Event } from '@/lib/db/schema';
+import { stripHtml } from '@/lib/utils';
 
 interface Props {
   event: Event;
   emails: string[];
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
 }
 
 function formatDate(date: Date): string {

@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import { Save, Send, Eye, Loader2, Mail } from "lucide-react";
 import type { AudienceFilter } from "@/lib/types/email";
+import { stripHtml } from "@/lib/utils";
 
 interface EmailComposerProps {
   initialAudienceType?: string;
@@ -167,31 +168,23 @@ export function EmailComposer({
 
     startTransition(async () => {
       try {
-        const saved = await saveEmailBlastAction({
-          id: blastId || undefined,
-          subject,
-          bodyTemplate: bodyHtml,
-          audienceType: audienceFilter.type,
-          audienceFilters: audienceFilter,
-        });
+        const [saved, emails] = await Promise.all([
+          saveEmailBlastAction({
+            id: blastId || undefined,
+            subject,
+            bodyTemplate: bodyHtml,
+            audienceType: audienceFilter.type,
+            audienceFilters: audienceFilter,
+          }),
+          getAudienceEmailsAction(audienceFilter),
+        ]);
         setBlastId(saved.id);
-
-        const emails = await getAudienceEmailsAction(audienceFilter);
-
-        const plainText = bodyHtml
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/\s{2,}/g, ' ')
-          .trim();
 
         const url =
           `mailto:lattelab-exec@mit.edu` +
           `?subject=${encodeURIComponent(subject)}` +
           `&cc=${encodeURIComponent(emails.join(','))}` +
-          `&body=${encodeURIComponent(plainText)}`;
+          `&body=${encodeURIComponent(stripHtml(bodyHtml))}`;
 
         window.location.href = url;
       } catch (error) {

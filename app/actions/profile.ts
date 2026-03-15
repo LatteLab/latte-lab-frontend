@@ -51,7 +51,7 @@ const onboardingSchema = z.object({
   major: z.string().min(1, 'Major is required').max(100),
   classYear: z.string().min(1, 'Class year is required').max(50),
   interests: z.string().min(1, 'Interests are required').max(300),
-  phone: z.string().max(30).optional(),
+  phone: z.string().max(20).regex(/^[+\d\s\-(). ]*$/, 'Invalid phone number format').optional(),
   bio: z.string().max(500).optional(),
 });
 
