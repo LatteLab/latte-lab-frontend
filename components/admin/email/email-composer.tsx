@@ -1,32 +1,18 @@
 "use client";
 
 import { useState, useEffect, useTransition, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { AudiencePicker } from "@/components/admin/email/audience-picker";
 import { MergeFieldDropdown } from "@/components/admin/events/merge-field-dropdown";
 import {
   saveEmailBlastAction,
-  sendEmailBlastAction,
-  sendPreviewEmailAction,
   getEmailBlastDetailAction,
   getAudienceEmailsAction,
 } from "@/app/actions/email";
 import { toast } from "sonner";
-import { Save, Send, Eye, Loader2, Mail } from "lucide-react";
+import { Save, Loader2, Mail } from "lucide-react";
 import type { AudienceFilter } from "@/lib/types/email";
 import { stripHtml } from "@/lib/utils";
 
@@ -41,7 +27,6 @@ export function EmailComposer({
   initialEventId,
   initialBlastId,
 }: EmailComposerProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   // Form state
@@ -133,33 +118,6 @@ export function EmailComposer({
     });
   };
 
-  const handleSendPreview = () => {
-    if (!subject.trim() || !bodyHtml.trim()) {
-      toast.error("Subject and body are required");
-      return;
-    }
-
-    startTransition(async () => {
-      try {
-        // Save first to ensure DB has latest changes
-        const saved = await saveEmailBlastAction({
-          id: blastId || undefined,
-          subject,
-          bodyTemplate: bodyHtml,
-          audienceType: audienceFilter.type,
-          audienceFilters: audienceFilter,
-        });
-        setBlastId(saved.id);
-        await sendPreviewEmailAction(saved.id);
-        toast.success("Preview email sent to your inbox");
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to send preview"
-        );
-      }
-    });
-  };
-
   const handleOpenInOutlook = () => {
     if (!subject.trim() || !bodyHtml.trim()) {
       toast.error("Subject and body are required");
@@ -190,34 +148,6 @@ export function EmailComposer({
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "Failed to open Outlook"
-        );
-      }
-    });
-  };
-
-  const handleSendBlast = () => {
-    if (!subject.trim() || !bodyHtml.trim()) {
-      toast.error("Subject and body are required");
-      return;
-    }
-
-    startTransition(async () => {
-      try {
-        // Always save before sending to ensure DB has latest changes
-        const saved = await saveEmailBlastAction({
-          id: blastId || undefined,
-          subject,
-          bodyTemplate: bodyHtml,
-          audienceType: audienceFilter.type,
-          audienceFilters: audienceFilter,
-        });
-        setBlastId(saved.id);
-        await sendEmailBlastAction(saved.id);
-        toast.success("Email blast sent successfully");
-        router.push("/admin/email");
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to send blast"
         );
       }
     });
@@ -284,48 +214,17 @@ export function EmailComposer({
         </Button>
 
         <Button
-          variant="outline"
-          size="sm"
-          onClick={handleSendPreview}
-          disabled={isPending}
-        >
-          <Eye className="h-4 w-4 mr-1.5" />
-          Send Preview to Me
-        </Button>
-
-        <Button
-          variant="outline"
           size="sm"
           onClick={handleOpenInOutlook}
           disabled={isPending}
         >
-          <Mail className="h-4 w-4 mr-1.5" />
-          Open in Outlook
+          {isPending ? (
+            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+          ) : (
+            <Mail className="h-4 w-4 mr-1.5" />
+          )}
+          Send
         </Button>
-
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button size="sm" disabled={isPending}>
-              <Send className="h-4 w-4 mr-1.5" />
-              Send Blast
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Send Email Blast?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will send the email to all recipients in the selected
-                audience. This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleSendBlast}>
-                Send Now
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
     </div>
   );
