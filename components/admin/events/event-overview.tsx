@@ -13,7 +13,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { EventForm } from "@/components/admin/events/event-form";
-import { approveRegistration, denyRegistration } from "@/app/actions/events";
+import { approveRegistration, denyRegistration, duplicateEventAction } from "@/app/actions/events";
+import { useRouter } from "next/navigation";
 import { parseGradient, gradientConfigToCSS } from "@/lib/gradients";
 import { toast } from "sonner";
 import {
@@ -24,6 +25,7 @@ import {
   MapPin,
   Calendar,
   Clock,
+  CopyPlus,
 } from "lucide-react";
 import Link from "next/link";
 import type { Event } from "@/lib/db/schema";
@@ -43,6 +45,7 @@ export function EventOverview({
   const [editOpen, setEditOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const goingStatuses = ["registered", "selected", "checked_in"];
   const goingCount = registrations.filter((r) =>
@@ -89,6 +92,18 @@ export function EventOverview({
         toast.success("Registration approved");
       } catch {
         toast.error("Failed to approve registration");
+      }
+    });
+  };
+
+  const handleDuplicate = () => {
+    startTransition(async () => {
+      try {
+        const copy = await duplicateEventAction(event.id);
+        toast.success('Event duplicated');
+        router.push(`/admin/events/${copy.id}`);
+      } catch {
+        toast.error('Failed to duplicate event');
       }
     });
   };
@@ -154,6 +169,10 @@ export function EventOverview({
           </Button>
         </Link>
         <SendInviteButton event={event} emails={inviteEmails} />
+        <Button variant="outline" size="sm" onClick={handleDuplicate} disabled={isPending}>
+          <CopyPlus className="h-3.5 w-3.5 mr-1.5" />
+          Duplicate
+        </Button>
       </div>
 
       {/* Event Preview */}

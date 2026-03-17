@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { CloseRegistrationButton } from "@/components/admin/events/close-registration-button";
 import { InviteLinkCard } from "@/components/admin/events/invite-link-card";
+import { EventHistory } from "@/components/admin/events/event-history";
 import { deleteEventAction } from "@/app/actions/events";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -62,6 +63,12 @@ export function EventSettings({ event }: { event: Event }) {
           <InviteLinkCard eventId={event.id} inviteCode={event.inviteCode} />
         </div>
       )}
+
+      {/* Change History */}
+      <div>
+        <h3 className="text-sm font-semibold mb-3">Change History</h3>
+        <EventHistory eventId={event.id} />
+      </div>
 
       {/* Danger Zone */}
       <div>

@@ -1,6 +1,6 @@
 import { auth } from '@/auth';
 import { redirect, notFound } from 'next/navigation';
-import { getEventById, getUserRegistration, getEventRegistrations, getRegistrationCount, hasEventAccess, getOutgoingInvite, getIncomingInvite } from '@/lib/db/event-queries';
+import { getEventById, getUserRegistration, getEventRegistrations, getRegistrationCount, hasEventAccess, getOutgoingInvite, getIncomingInvite, getWaitlistPosition } from '@/lib/db/event-queries';
 import { EventRegistrationButton } from '@/components/user/event-registration-button';
 import { PastEventStatusCard } from '@/components/user/past-event-status-card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -55,6 +55,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     getEventRegistrations(id),
     getRegistrationCount(id, ['registered', 'selected', 'checked_in']),
   ]);
+
+  const waitlistPosition = registration?.status === 'waitlisted'
+    ? await getWaitlistPosition(session.user.id, id)
+    : null;
 
   // Fetch +1 pairing data if feature is enabled and user is registered
   const [outgoingInvite, incomingInvite] = registration && event.plusOneEnabled
@@ -231,6 +235,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                     spotsRemaining={spotsRemaining}
                     partnerInfo={partnerInfoForButton}
                   />
+                  {waitlistPosition !== null && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      You&apos;re <span className="font-semibold text-foreground">#{waitlistPosition}</span> on the waitlist
+                    </p>
+                  )}
                   <PlusOneSection
                     event={event}
                     registration={registration}
@@ -270,6 +279,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               spotsRemaining={spotsRemaining}
               partnerInfo={partnerInfoForButton}
             />
+            {waitlistPosition !== null && (
+              <p className="text-xs text-muted-foreground text-center">
+                You&apos;re <span className="font-semibold text-foreground">#{waitlistPosition}</span> on the waitlist
+              </p>
+            )}
             <PlusOneSection
               event={event}
               registration={registration}

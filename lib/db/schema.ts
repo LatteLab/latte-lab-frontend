@@ -202,6 +202,15 @@ export const emailRecipients = pgTable('email_recipients', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Event edit log — tracks field-level changes on every event update
+export const eventEditLog = pgTable('event_edit_log', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  changedBy: text('changed_by').notNull().references(() => users.id),
+  changedAt: timestamp('changed_at').defaultNow().notNull(),
+  changes: json('changes').$type<Record<string, { old: unknown; new: unknown }>>().notNull(),
+});
+
 // ============================================================================
 // Type Exports
 // ============================================================================
@@ -235,3 +244,5 @@ export type NewEventPlusOneInvite = typeof eventPlusOneInvites.$inferInsert;
 export type RegistrationStatus = (typeof registrationStatusEnum.enumValues)[number];
 export type EmailRecipientStatus = (typeof emailRecipientStatusEnum.enumValues)[number];
 export type EmailAudienceType = (typeof emailAudienceTypeEnum.enumValues)[number];
+export type EventEditLog = typeof eventEditLog.$inferSelect;
+export type NewEventEditLog = typeof eventEditLog.$inferInsert;

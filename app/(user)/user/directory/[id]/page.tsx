@@ -1,9 +1,10 @@
 import { auth } from '@/auth';
 import { redirect, notFound } from 'next/navigation';
 import { getUserById } from '@/lib/db/queries';
+import { getUserAttendanceHistory } from '@/lib/db/event-queries';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, Phone, MapPin, GraduationCap, BookOpen } from 'lucide-react';
+import { Mail, Phone, MapPin, GraduationCap, BookOpen, CalendarCheck } from 'lucide-react';
 import { formatYearLabel } from '@/lib/utils';
 
 export default async function MemberProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +12,10 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
   if (!session?.user) redirect('/login');
 
   const { id } = await params;
-  const user = await getUserById(id);
+  const [user, attended] = await Promise.all([
+    getUserById(id),
+    getUserAttendanceHistory(id),
+  ]);
   if (!user || !user.isVisibleInDirectory) notFound();
 
   return (
@@ -83,6 +87,28 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
                 )}
               </CardContent>
             </Card>
+            {/* Attendance History */}
+            {attended.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <CalendarCheck className="h-4 w-4" />
+                    Events Attended
+                    <span className="text-sm font-normal text-muted-foreground ml-auto">{attended.length}</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {attended.map((event) => (
+                    <div key={event.id} className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{event.name}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
     </div>

@@ -1,7 +1,7 @@
 import { db } from './index';
-import { events, eventRegistrations, eventAccess, lotteryHistory, users, semesters, registrationAuditLog, eventPlusOneInvites } from './schema';
+import { events, eventRegistrations, eventAccess, lotteryHistory, users, semesters, registrationAuditLog, eventPlusOneInvites, eventEditLog } from './schema';
 import { eq, and, or, desc, gte, lt, count, inArray, isNull, sql } from 'drizzle-orm';
-import type { Event, NewEvent, EventRegistration, NewRegistrationAuditLog, EventPlusOneInvite, NewEventPlusOneInvite } from './schema';
+import type { Event, NewEvent, EventRegistration, NewRegistrationAuditLog, EventPlusOneInvite, NewEventPlusOneInvite, NewEventEditLog } from './schema';
 import type { RegistrationRow, RegistrationWithStats } from '@/lib/types/event';
 
 // ============================================================================
@@ -632,6 +632,20 @@ export async function getEventStats() {
   };
 }
 
+export async function getWaitlistPosition(userId: string, eventId: string): Promise<number | null> {
+  const reg = await getUserRegistration(userId, eventId);
+  if (!reg || reg.status !== 'waitlisted') return null;
+
+  const [result] = await db.select({ count: count() })
+    .from(eventRegistrations)
+    .where(and(
+      eq(eventRegistrations.eventId, eventId),
+      eq(eventRegistrations.status, 'waitlisted'),
+      lt(eventRegistrations.createdAt, reg.createdAt),
+    ));
+  return (result?.count ?? 0) + 1;
+}
+
 export async function getUserEventHistory(userId: string) {
   return db.select({
     registration: eventRegistrations,
@@ -644,6 +658,21 @@ export async function getUserEventHistory(userId: string) {
     .from(eventRegistrations)
     .innerJoin(events, eq(eventRegistrations.eventId, events.id))
     .where(eq(eventRegistrations.userId, userId))
+    .orderBy(desc(events.date));
+}
+
+export async function getUserAttendanceHistory(userId: string) {
+  return db.select({
+    id: events.id,
+    name: events.name,
+    date: events.date,
+  })
+    .from(eventRegistrations)
+    .innerJoin(events, eq(eventRegistrations.eventId, events.id))
+    .where(and(
+      eq(eventRegistrations.userId, userId),
+      eq(eventRegistrations.status, 'checked_in'),
+    ))
     .orderBy(desc(events.date));
 }
 
@@ -735,4 +764,28 @@ export async function updatePlusOneInviteStatus(
 /** Delete an invite (decline or dissolve). */
 export async function deletePlusOneInvite(id: string): Promise<void> {
   await db.delete(eventPlusOneInvites).where(eq(eventPlusOneInvites.id, id));
+}
+
+// ============================================================================
+// Event Edit Log Queries
+// ============================================================================
+
+export async function createEventEditLogEntry(data: NewEventEditLog) {
+  await db.insert(eventEditLog).values(data);
+}
+
+export async function getEventEditLog(eventId: string) {
+  return db.select({
+    id: eventEditLog.id,
+    changedAt: eventEditLog.changedAt,
+    changes: eventEditLog.changes,
+    changedBy: {
+      id: users.id,
+      name: users.name,
+    },
+  })
+    .from(eventEditLog)
+    .innerJoin(users, eq(eventEditLog.changedBy, users.id))
+    .where(eq(eventEditLog.eventId, eventId))
+    .orderBy(desc(eventEditLog.changedAt));
 }

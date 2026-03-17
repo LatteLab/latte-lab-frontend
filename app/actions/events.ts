@@ -38,6 +38,8 @@ import {
   createPlusOneInvite,
   updatePlusOneInviteStatus,
   deletePlusOneInvite,
+  createEventEditLogEntry,
+  getEventEditLog as dbGetEventEditLog,
 } from '@/lib/db/event-queries';
 import { getUserById } from '@/lib/db/queries';
 import { createEventSchema, updateEventSchema } from '@/lib/validations/events';
@@ -92,15 +94,15 @@ export async function updateEventAction(eventId: string, formData: FormData) {
   });
   const questions = raw.questions !== undefined ? (raw.questions ? JSON.parse(raw.questions as string) : null) : undefined;
 
+  // Fetch old event for changelog diff + invite code logic
+  const oldEvent = await getEventById(eventId);
+
   // Handle invite code when visibility changes
   let inviteCode: string | null | undefined;
   if (parsed.visibility === 'private') {
-    const existing = await getEventById(eventId);
-    if (!existing?.inviteCode) {
+    if (!oldEvent?.inviteCode) {
       inviteCode = Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString('base64url');
     }
-  } else if (parsed.visibility === 'public') {
-    // Keep invite code even when going public (existing links still work)
   }
 
   const event = await dbUpdateEvent(eventId, {
@@ -113,10 +115,64 @@ export async function updateEventAction(eventId: string, formData: FormData) {
     ...(inviteCode !== undefined && { inviteCode }),
   });
 
+  // Log changed fields
+  if (oldEvent) {
+    const trackedFields = ['name', 'description', 'date', 'endDate', 'location', 'capacity', 'visibility', 'status', 'requireApproval', 'waitlistEnabled', 'plusOneEnabled'] as const;
+    const changes: Record<string, { old: unknown; new: unknown }> = {};
+    for (const field of trackedFields) {
+      if (JSON.stringify(oldEvent[field]) !== JSON.stringify(event[field])) {
+        changes[field] = { old: oldEvent[field], new: event[field] };
+      }
+    }
+    if (Object.keys(changes).length > 0) {
+      await createEventEditLogEntry({ eventId, changedBy: session.user.id, changes });
+    }
+  }
+
   revalidatePath('/admin/events');
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath('/user/events');
   return event;
+}
+
+export async function getEventEditLogAction(eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+  return dbGetEventEditLog(eventId);
+}
+
+export async function duplicateEventAction(eventId: string) {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const original = await getEventById(eventId);
+  if (!original) throw new Error('Event not found');
+
+  const inviteCode = original.visibility === 'private'
+    ? Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString('base64url')
+    : null;
+
+  const copy = await dbCreateEvent({
+    name: `${original.name} (Copy)`,
+    description: original.description,
+    coverImage: original.coverImage,
+    date: original.date,
+    endDate: original.endDate,
+    location: original.location,
+    capacity: original.capacity,
+    visibility: original.visibility,
+    waitlistEnabled: original.waitlistEnabled,
+    plusOneEnabled: original.plusOneEnabled,
+    requireApproval: original.requireApproval,
+    questions: original.questions,
+    status: 'open',
+    lotteryStatus: null,
+    inviteCode,
+    createdBy: session.user.id,
+  });
+
+  revalidatePath('/admin/events');
+  return copy;
 }
 
 export async function registerForEvent(eventId: string, questionnaireAnswers?: Record<string, string | boolean>) {
