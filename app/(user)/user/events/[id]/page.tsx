@@ -11,30 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { isGradient, parseGradient, gradientConfigToCSS } from '@/lib/gradients';
 import { CoverImageLightbox } from '@/components/user/cover-image-lightbox';
 import { sanitize } from '@/lib/sanitize';
-
-function formatDate(date: Date) {
-  return new Date(date).toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-function formatTime(date: Date) {
-  return new Date(date).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function formatMonthShort(date: Date) {
-  return new Date(date).toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-}
-
-function formatDay(date: Date) {
-  return new Date(date).getDate();
-}
+import { FormattedTime } from '@/components/ui/formatted-time';
 
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -151,18 +128,29 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               <div className="space-y-3">
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg border bg-muted/50">
-                    <span className="text-[10px] font-semibold uppercase leading-none text-muted-foreground">
-                      {formatMonthShort(event.date)}
-                    </span>
-                    <span className="text-lg font-bold leading-tight text-foreground">
-                      {formatDay(event.date)}
-                    </span>
+                    <FormattedTime
+                      date={event.date}
+                      format="month-short"
+                      className="text-[10px] font-semibold uppercase leading-none text-muted-foreground"
+                    />
+                    <FormattedTime
+                      date={event.date}
+                      format="day"
+                      className="text-lg font-bold leading-tight text-foreground"
+                    />
                   </div>
                   <div>
-                    <p className="font-medium text-foreground">{formatDate(event.date)}</p>
+                    <p className="font-medium text-foreground">
+                      <FormattedTime date={event.date} format="date" />
+                    </p>
                     <p className="text-sm">
-                      {formatTime(event.date)}
-                      {event.endDate && ` — ${formatTime(event.endDate)}`}
+                      <FormattedTime date={event.date} format="time" />
+                      {event.endDate && (
+                        <>
+                          {' — '}
+                          <FormattedTime date={event.endDate} format="time" />
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
