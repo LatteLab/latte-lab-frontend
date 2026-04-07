@@ -4,14 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { MapPin, Users, Calendar } from 'lucide-react';
 import type { Event } from '@/lib/db/schema';
 import { isGradient, parseGradient, gradientConfigToCSS } from '@/lib/gradients';
-
-function formatTime(date: Date) {
-  return new Date(date).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-}
+import { FormattedTime } from '@/components/ui/formatted-time';
 
 function getStatusBadge(status: string | null) {
   switch (status) {
@@ -47,7 +40,7 @@ export function TimelineEventCard({ event, registrationStatus, registeredCount }
         {/* Left: event info */}
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <p className="text-sm text-muted-foreground">
-            {formatTime(event.date)}
+            <FormattedTime date={event.date} format="time" />
           </p>
 
           <h3 className="text-lg leading-snug font-semibold tracking-tight line-clamp-2">

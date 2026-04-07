@@ -1,3 +1,5 @@
+'use client';
+
 import type { Event } from '@/lib/db/schema';
 import { TimelineEventCard } from './event-card';
 
