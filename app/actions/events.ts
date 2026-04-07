@@ -58,6 +58,7 @@ export async function createEventAction(formData: FormData) {
     plusOneEnabled: raw.plusOneEnabled === 'true',
   });
   const questions = raw.questions ? JSON.parse(raw.questions as string) : null;
+  const timezone = raw.timezone as string;
 
   // Auto-generate invite code for private events
   const inviteCode = parsed.visibility === 'private'
@@ -71,6 +72,7 @@ export async function createEventAction(formData: FormData) {
     location: parsed.location || null,
     endDate: parsed.endDate || null,
     questions: questions || null,
+    timezone,
     inviteCode,
     status: 'open',
     createdBy: session.user.id,
@@ -93,6 +95,7 @@ export async function updateEventAction(eventId: string, formData: FormData) {
     plusOneEnabled: raw.plusOneEnabled !== undefined ? raw.plusOneEnabled === 'true' : undefined,
   });
   const questions = raw.questions !== undefined ? (raw.questions ? JSON.parse(raw.questions as string) : null) : undefined;
+  const timezone = raw.timezone as string | undefined;
 
   // Fetch old event for changelog diff + invite code logic
   const oldEvent = await getEventById(eventId);
@@ -113,6 +116,7 @@ export async function updateEventAction(eventId: string, formData: FormData) {
     endDate: parsed.endDate || null,
     ...(questions !== undefined && { questions }),
     ...(inviteCode !== undefined && { inviteCode }),
+    ...(timezone && { timezone }),
   });
 
   // Log changed fields
