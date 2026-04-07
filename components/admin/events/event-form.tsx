@@ -37,6 +37,58 @@ import {
 import type { Event } from "@/lib/db/schema";
 import type { EventQuestion } from "@/lib/types/event";
 
+/**
+ * Convert a Date whose hours/minutes represent wall-clock time in the browser
+ * to a UTC ISO string as if those hours/minutes were in `timezone`.
+ */
+function wallClockToUTC(date: Date, tz: string): string {
+  const opts: Intl.DateTimeFormatOptions = {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  };
+  const targetParts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { ...opts, timeZone: tz })
+      .formatToParts(date).map(p => [p.type, p.value])
+  );
+  const browserParts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', opts)
+      .formatToParts(date).map(p => [p.type, p.value])
+  );
+
+  const targetMs = Date.UTC(
+    +targetParts.year, +targetParts.month - 1, +targetParts.day,
+    +targetParts.hour, +targetParts.minute, +targetParts.second,
+  );
+  const browserMs = Date.UTC(
+    +browserParts.year, +browserParts.month - 1, +browserParts.day,
+    +browserParts.hour, +browserParts.minute, +browserParts.second,
+  );
+
+  const offsetDiff = browserMs - targetMs;
+  return new Date(date.getTime() + offsetDiff).toISOString();
+}
+
+/**
+ * Convert a UTC Date to a local Date whose hours/minutes match the wall-clock
+ * time in `timezone`. Used when loading an event for editing.
+ */
+function utcToWallClock(utcDate: Date, tz: string): Date {
+  const opts: Intl.DateTimeFormatOptions = {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  };
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { ...opts, timeZone: tz })
+      .formatToParts(utcDate).map(p => [p.type, p.value])
+  );
+  return new Date(
+    +parts.year, +parts.month - 1, +parts.day,
+    +parts.hour, +parts.minute, +parts.second,
+  );
+}
+
 const STANDARD_IDS = ["std_photo_consent", "std_allergies", "std_dietary"];
 
 const STANDARD_PRESETS: Record<string, EventQuestion> = {
@@ -69,12 +121,14 @@ export function EventForm({
 }) {
   const [coverImage, setCoverImage] = useState<string>(event?.coverImage || "");
   const [name, setName] = useState(event?.name || "");
-  const [startDate, setStartDate] = useState<Date | undefined>(
-    event?.date ? new Date(event.date) : undefined
-  );
-  const [endDate, setEndDate] = useState<Date | undefined>(
-    event?.endDate ? new Date(event.endDate) : undefined
-  );
+  const [startDate, setStartDate] = useState<Date | undefined>(() => {
+    if (!event?.date) return undefined;
+    return utcToWallClock(new Date(event.date), event.timezone ?? 'America/New_York');
+  });
+  const [endDate, setEndDate] = useState<Date | undefined>(() => {
+    if (!event?.endDate) return undefined;
+    return utcToWallClock(new Date(event.endDate), event.timezone ?? 'America/New_York');
+  });
   const [location, setLocation] = useState(event?.location || "");
   const [description, setDescription] = useState(event?.description || "");
   const [visibility, setVisibility] = useState<"private" | "public">(
@@ -93,7 +147,7 @@ export function EventForm({
     event?.requireApproval ?? false
   );
   const [timezone, setTimezone] = useState(
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone
+    () => event?.timezone ?? 'America/New_York'
   );
 
   // Registration Questions
@@ -193,8 +247,9 @@ export function EventForm({
       formData.set("requireApproval", String(requireApproval));
     }
     formData.set("questions", questions.length > 0 ? JSON.stringify(questions) : "");
-    if (startDate) formData.set("date", startDate.toISOString());
-    if (endDate) formData.set("endDate", endDate.toISOString());
+    formData.set("timezone", timezone);
+    if (startDate) formData.set("date", wallClockToUTC(startDate, timezone));
+    if (endDate) formData.set("endDate", wallClockToUTC(endDate, timezone));
 
     startTransition(async () => {
       try {
