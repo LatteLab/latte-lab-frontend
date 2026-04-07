@@ -93,6 +93,7 @@ export const events = pgTable('events', {
   waitlistEnabled: boolean('waitlist_enabled').notNull().default(false),
   plusOneEnabled: boolean('plus_one_enabled').notNull().default(false),
   requireApproval: boolean('require_approval').notNull().default(false),
+  timezone: text('timezone').notNull().default('America/New_York'),
   questions: json('questions').$type<Array<{ id: string; type: 'text' | 'consent'; label: string; required: boolean }>>(),
   status: eventStatusEnum('status').notNull().default('open'),
   lotteryStatus: lotteryStatusEnum('lottery_status'),

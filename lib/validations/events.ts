@@ -21,6 +21,7 @@ const eventBaseSchema = z.object({
   plusOneEnabled: formBool.pipe(z.boolean()).default(false),
   requireApproval: formBool.pipe(z.boolean()).default(false),
   questions: z.string().optional(),
+  timezone: z.string().min(1, 'Timezone is required'),
 });
 
 const endDateAfterStart = {
