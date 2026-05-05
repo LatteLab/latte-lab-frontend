@@ -1,6 +1,6 @@
 // Discriminated union of every transactional template + payload shape.
-// Adding a template: add its key + payload type here, register a renderer in
-// lib/emails/transactional/renderer.ts, and the rest of the pipeline picks it up.
+// Adding a template: add its key + payload type here, then render it from
+// lib/emails/transactional-renderer.ts.
 
 export type TransactionalTemplate =
   | 'registration_received'

@@ -11,12 +11,11 @@
  */
 
 import { Resend } from 'resend';
-import { render } from '@react-email/render';
 import { db } from '@/lib/db';
 import { emailOutbox } from '@/lib/db/schema';
 import { eq, and, sql, or, inArray, lte, lt, isNull } from 'drizzle-orm';
 import type { EmailOutbox, EmailOutboxStatus } from '@/lib/db/schema';
-import { getSubject, getComponent } from './transactional/renderer';
+import { getSubject, renderTransactionalEmail } from './transactional-renderer';
 import type { TransactionalTemplate, PayloadFor, PayloadByTemplate } from './templates';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -248,9 +247,11 @@ async function attemptSend(row: EmailOutbox, options: { alreadyClaimed?: boolean
   // Render first - if it throws, it's a bug, not a transient failure.
   let html: string;
   try {
-    html = await render(
-      getComponent(row.template as TransactionalTemplate, row.payload as unknown as PayloadByTemplate[TransactionalTemplate]),
-    );
+    if (!row.template) throw new Error('Missing template');
+    html = renderTransactionalEmail(
+      row.template as TransactionalTemplate,
+      row.payload as unknown as PayloadByTemplate[TransactionalTemplate],
+    ).html;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await db
