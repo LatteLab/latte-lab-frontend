@@ -51,8 +51,13 @@ import {
 import { getUserById } from '@/lib/db/queries';
 import { createEventSchema, updateEventSchema } from '@/lib/validations/events';
 import { weightedSelectWithSeats, buildLotteryPool } from '@/lib/utils/lottery';
-import { deleteEventPhotoObject, uploadEventPhotoObject } from '@/lib/supabase/server-storage';
-import { EVENT_PHOTO_LIMITS } from '@/lib/supabase/image-utils';
+import {
+  createEventPhotoUploadTickets,
+  deleteEventPhotoObject,
+  getEventPhotoPublicUrl,
+  type UploadTicket,
+  type UploadTicketRequest,
+} from '@/lib/supabase/server-storage';
 import { sendTransactional } from '@/lib/emails/send';
 import { buildEventSummary } from '@/lib/emails/templates';
 import {
@@ -1549,12 +1554,31 @@ export async function getInvitableUsers(eventId: string) {
 const PHOTO_CAPTION_MAX = 200;
 
 /**
- * Uploads event photos through the server so Storage mutations stay behind
- * admin auth and the Supabase service role.
+ * Phase 1 of the direct-upload flow: mint short-lived signed upload URLs so the browser PUTs
+ * each file straight to Supabase Storage. The service role key never leaves the server, but
+ * file bytes never enter the Vercel function (sidesteps the 1 MB Server Action and 4.5 MB
+ * Hobby body caps and lets the client parallelize uploads).
  */
-export async function uploadEventPhotosAction(
+export async function createEventPhotoUploadTicketsAction(
   eventId: string,
-  formData: FormData,
+  files: UploadTicketRequest[],
+): Promise<UploadTicket[]> {
+  const session = await auth();
+  if (!session?.user?.isAdmin) throw new Error('Unauthorized');
+
+  const event = await getEventById(eventId);
+  if (!event) throw new Error('Event not found');
+
+  return createEventPhotoUploadTickets(eventId, files);
+}
+
+/**
+ * Phase 2: persist DB rows for the storage paths the client successfully uploaded. Tampering
+ * is bounded by the path prefix check - a client cannot point a row at someone else's path.
+ */
+export async function recordEventPhotosAction(
+  eventId: string,
+  photos: { storagePath: string; caption?: string | null }[],
 ) {
   const session = await auth();
   if (!session?.user?.isAdmin) throw new Error('Unauthorized');
@@ -1562,39 +1586,27 @@ export async function uploadEventPhotosAction(
   const event = await getEventById(eventId);
   if (!event) throw new Error('Event not found');
 
-  const files = formData
-    .getAll('photos')
-    .filter((value): value is File => value instanceof File && value.size > 0);
+  if (photos.length === 0) return [];
 
-  if (files.length === 0) return [];
-  if (files.length > EVENT_PHOTO_LIMITS.maxBatchSize) {
-    throw new Error(`Too many photos at once (max ${EVENT_PHOTO_LIMITS.maxBatchSize})`);
-  }
-
-  const uploaded: { path: string; publicUrl: string }[] = [];
-
-  try {
-    for (const file of files) {
-      uploaded.push(await uploadEventPhotoObject(eventId, file));
+  const prefix = `events/${eventId}/`;
+  const rows = photos.map((photo) => {
+    if (!photo.storagePath.startsWith(prefix)) {
+      throw new Error('Invalid storage path');
     }
+    return {
+      eventId,
+      storagePath: photo.storagePath,
+      publicUrl: getEventPhotoPublicUrl(photo.storagePath),
+      caption: photo.caption?.trim() || null,
+      uploadedBy: session.user.id,
+    };
+  });
 
-    const created = await createEventPhotos(
-      uploaded.map((photo) => ({
-        eventId,
-        storagePath: photo.path,
-        publicUrl: photo.publicUrl,
-        caption: null,
-        uploadedBy: session.user.id,
-      })),
-    );
+  const created = await createEventPhotos(rows);
 
-    revalidatePath(`/admin/events/${eventId}`);
-    revalidatePath(`/user/events/${eventId}`);
-    return created;
-  } catch (error) {
-    await Promise.allSettled(uploaded.map((photo) => deleteEventPhotoObject(photo.path)));
-    throw error;
-  }
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidatePath(`/user/events/${eventId}`);
+  return created;
 }
 
 export async function deleteEventPhotoAction(photoId: string) {

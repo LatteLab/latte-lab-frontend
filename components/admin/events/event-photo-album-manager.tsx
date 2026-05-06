@@ -29,14 +29,40 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { EVENT_PHOTO_LIMITS } from '@/lib/supabase/image-utils';
+import { EVENT_PHOTO_LIMITS, EVENT_PHOTOS_BUCKET, validateImageMagicBytes } from '@/lib/supabase/image-utils';
+import { supabase } from '@/lib/supabase/client';
 import {
   deleteEventPhotoAction,
-  uploadEventPhotosAction,
+  createEventPhotoUploadTicketsAction,
+  recordEventPhotosAction,
   updateEventPhotoCaptionAction,
   notifyPhotoAlbumAction,
 } from '@/app/actions/events';
 import type { Event, EventPhoto } from '@/lib/db/schema';
+
+const UPLOAD_CONCURRENCY = 3;
+
+async function runWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const index = cursor++;
+      if (index >= items.length) return;
+      try {
+        results[index] = { status: 'fulfilled', value: await worker(items[index], index) };
+      } catch (error) {
+        results[index] = { status: 'rejected', reason: error };
+      }
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
 
 interface EventPhotoAlbumManagerProps {
   event: Event;
@@ -111,19 +137,73 @@ export function EventPhotoAlbumManager({ event, photos }: EventPhotoAlbumManager
       }
     }
 
-    const formData = new FormData();
-    selected.forEach((file) => formData.append('photos', file));
+    // Magic-byte sniff so a renamed PDF/etc. fails before hitting the network.
+    try {
+      for (const file of selected) {
+        const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+        validateImageMagicBytes(head);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'File is not a supported image');
+      return;
+    }
 
     setUploading(true);
     setUploadProgress({ done: 0, total: selected.length });
 
     try {
-      const created = await uploadEventPhotosAction(event.id, formData);
-      setUploadProgress({ done: created.length, total: selected.length });
+      const tickets = await createEventPhotoUploadTicketsAction(
+        event.id,
+        selected.map((file) => ({ mimeType: file.type, sizeBytes: file.size })),
+      );
+
+      if (tickets.length !== selected.length) {
+        throw new Error('Upload ticket count did not match file count');
+      }
+
+      const results = await runWithConcurrency(selected, UPLOAD_CONCURRENCY, async (file, index) => {
+        const ticket = tickets[index];
+        const { error } = await supabase.storage
+          .from(EVENT_PHOTOS_BUCKET)
+          .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type });
+        if (error) throw new Error(`${file.name}: ${error.message}`);
+        setUploadProgress((prev) => (prev ? { ...prev, done: prev.done + 1 } : prev));
+        return ticket.path;
+      });
+
+      const uploadedPaths: string[] = [];
+      const failures: string[] = [];
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          uploadedPaths.push(result.value);
+        } else {
+          const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+          console.error('[event-photos] upload failed:', selected[index].name, result.reason);
+          failures.push(`${selected[index].name}: ${reason}`);
+        }
+      });
+
+      if (uploadedPaths.length > 0) {
+        await recordEventPhotosAction(
+          event.id,
+          uploadedPaths.map((storagePath) => ({ storagePath })),
+        );
+      }
+
       router.refresh();
-      toast.success(`${photoLabel(created.length)} uploaded`);
+
+      if (uploadedPaths.length === 0) {
+        toast.error(`All ${selected.length} uploads failed`);
+      } else if (failures.length === 0) {
+        toast.success(`${photoLabel(uploadedPaths.length)} uploaded`);
+      } else {
+        toast.warning(
+          `${photoLabel(uploadedPaths.length)} uploaded, ${failures.length} failed`,
+          { description: failures.slice(0, 3).join('\n') },
+        );
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save photos');
+      toast.error(error instanceof Error ? error.message : 'Failed to upload photos');
     } finally {
       setUploading(false);
       setUploadProgress(null);
