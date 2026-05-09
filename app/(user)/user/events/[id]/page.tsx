@@ -74,7 +74,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const spotsRemaining = Math.max(0, event.capacity - confirmedCount);
   const capacityPercent = Math.min(100, Math.round((confirmedCount / event.capacity) * 100));
   const isPastEvent = new Date(event.endDate ?? event.date) < new Date()
-    || event.status === 'closed' || event.status === 'completed' || event.status === 'cancelled';
+    || event.status === 'completed' || event.status === 'cancelled';
   const photos = isPastEvent ? await getEventPhotos(id) : [];
 
   // Get confirmed attendees for guest list

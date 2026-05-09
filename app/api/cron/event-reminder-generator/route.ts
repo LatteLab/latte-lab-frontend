@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       .where(
         and(
           eq(eventEmailReminderRules.enabled, true),
-          eq(events.status, 'open'),
+          inArray(events.status, ['open', 'closed']),
           inArray(eventRegistrations.status, ['registered', 'selected', 'checked_in']),
           isNotNull(users.email),
           sql`${events.date} - (${eventEmailReminderRules.offsetMinutes} * interval '1 minute') >= ${lookbackStartIso}::timestamp`,

@@ -786,6 +786,7 @@ export async function discardLotteryDraft(eventId: string) {
 
   const event = await getEventById(eventId);
   if (!event || event.lotteryStatus !== 'draft') throw new Error('No lottery draft in progress');
+  assertLotteryEventCanMutate(event);
 
   const [regs, lotteryParticipants] = await Promise.all([
     getEventRegistrations(eventId),
@@ -1663,7 +1664,6 @@ export async function getEventPhotosForViewer(eventId: string) {
   if (!event) throw new Error('Event not found');
 
   const eventHasEnded = new Date(event.endDate ?? event.date) < new Date()
-    || event.status === 'closed'
     || event.status === 'completed'
     || event.status === 'cancelled';
   if (!eventHasEnded) return [];

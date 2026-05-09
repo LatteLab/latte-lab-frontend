@@ -29,9 +29,9 @@ export async function getPublishedEvents(filter?: 'upcoming' | 'past') {
 
   if (filter === 'upcoming') {
     baseConditions.push(gte(events.date, now));
-    baseConditions.push(eq(events.status, 'open'));
+    baseConditions.push(inArray(events.status, ['open', 'closed']));
   } else if (filter === 'past') {
-    baseConditions.push(or(lt(events.date, now), inArray(events.status, ['closed', 'completed']))!);
+    baseConditions.push(or(lt(events.date, now), inArray(events.status, ['completed', 'cancelled']))!);
   }
 
   const orderDir = filter === 'past' ? desc(events.date) : events.date;
@@ -430,9 +430,9 @@ export async function getUserEvents(userId: string, filter?: 'upcoming' | 'past'
 
   if (filter === 'upcoming') {
     conditions.push(gte(events.date, now));
-    conditions.push(eq(events.status, 'open'));
+    conditions.push(inArray(events.status, ['open', 'closed']));
   } else if (filter === 'past') {
-    conditions.push(or(lt(events.date, now), inArray(events.status, ['closed', 'completed', 'cancelled']))!);
+    conditions.push(or(lt(events.date, now), inArray(events.status, ['completed', 'cancelled']))!);
   }
 
   // Subquery: count confirmed registrations per event
@@ -469,9 +469,9 @@ export async function getUserEvents(userId: string, filter?: 'upcoming' | 'past'
 
   if (filter === 'upcoming') {
     accessConditions.push(gte(events.date, now));
-    accessConditions.push(eq(events.status, 'open'));
+    accessConditions.push(inArray(events.status, ['open', 'closed']));
   } else if (filter === 'past') {
-    accessConditions.push(or(lt(events.date, now), inArray(events.status, ['closed', 'completed', 'cancelled']))!);
+    accessConditions.push(or(lt(events.date, now), inArray(events.status, ['completed', 'cancelled']))!);
   }
 
   const accessedRows = await db

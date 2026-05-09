@@ -185,9 +185,12 @@ CREATE TABLE IF NOT EXISTS public.inbound_emails (
   created_at timestamp NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.email_outbox DROP CONSTRAINT IF EXISTS email_outbox_reply_to_inbound_fk;
+ALTER TABLE public.email_outbox DROP CONSTRAINT IF EXISTS email_outbox_reply_to_inbound_id_fkey;
+
 DO $$ BEGIN
   ALTER TABLE public.email_outbox
-    ADD CONSTRAINT email_outbox_reply_to_inbound_id_fkey
+    ADD CONSTRAINT email_outbox_reply_to_inbound_fk
     FOREIGN KEY (reply_to_inbound_id) REFERENCES public.inbound_emails(id) ON DELETE SET NULL;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;

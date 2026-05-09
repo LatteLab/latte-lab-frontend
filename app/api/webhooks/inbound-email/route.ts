@@ -94,8 +94,9 @@ export async function POST(req: NextRequest) {
       .onConflictDoNothing({ target: inboundEmails.providerEmailId })
       .returning({ id: inboundEmails.id });
 
-    if (inserted.length === 0) {
-      return NextResponse.json({ ok: true, dedupe: true });
+    const inboundId = inserted[0]?.id ?? await getRetryableInboundId(parsed.providerEmailId);
+    if (!inboundId) {
+      return NextResponse.json({ ok: true, dedupe: true, forwardStatus: 'sent' });
     }
 
     const forward = await forwardToExec(metadata.providerEmailId, parsed);
@@ -110,10 +111,11 @@ export async function POST(req: NextRequest) {
           forwardError: forward.errorMessage ?? null,
         },
       })
-      .where(eq(inboundEmails.id, inserted[0].id));
+      .where(eq(inboundEmails.id, inboundId));
 
     return NextResponse.json({
       ok: true,
+      dedupe: inserted.length === 0,
       threadingSource: thread.threadingSource,
       forwardStatus: forward.forwardStatus,
     });
@@ -217,6 +219,22 @@ async function fetchReceivedEmail(emailId: string): Promise<FullReceivedEmail | 
     console.error('[webhook/inbound-email] failed to fetch full email:', error);
     return null;
   }
+}
+
+async function getRetryableInboundId(providerEmailId: string): Promise<string | null> {
+  const [existing] = await db
+    .select({
+      id: inboundEmails.id,
+      forwardStatus: inboundEmails.forwardStatus,
+    })
+    .from(inboundEmails)
+    .where(eq(inboundEmails.providerEmailId, providerEmailId))
+    .limit(1);
+
+  if (!existing) return null;
+  return existing.forwardStatus === 'not_attempted' || existing.forwardStatus === 'failed'
+    ? existing.id
+    : null;
 }
 
 function mergeInbound(metadata: InboundMetadata, fullEmail: FullReceivedEmail | null): ParsedInbound {
@@ -352,11 +370,23 @@ async function forwardToExec(
   }
 
   try {
-    const { error } = await resend.emails.receiving.forward({
-      emailId,
-      to: forwardedTo,
-      from: process.env.EMAIL_FROM_AUTOMATED || FROM_AUTOMATED_DEFAULT,
-    });
+    const originalSubject = parsed.subject?.trim() || '(no subject)';
+    const subject = /^fwd:/i.test(originalSubject) ? originalSubject : `Fwd: ${originalSubject}`;
+    const { error } = await resend.emails.send(
+      {
+        from: process.env.EMAIL_FROM_AUTOMATED || FROM_AUTOMATED_DEFAULT,
+        to: forwardedTo,
+        replyTo: parsed.fromEmail,
+        subject,
+        text: buildForwardText(emailId, parsed),
+        html: buildForwardHtml(emailId, parsed),
+        headers: {
+          'X-LatteLab-Inbound-Email-ID': emailId,
+          'X-LatteLab-Original-From': parsed.fromEmail,
+        },
+      },
+      { idempotencyKey: `inbound-forward/${emailId}` },
+    );
     if (error) throw new Error(error.message);
 
     return { forwardedTo, forwardStatus: 'sent', forwardedAt: new Date() };
@@ -365,6 +395,53 @@ async function forwardToExec(
     console.error('[webhook/inbound-email] exec forward failed:', message);
     return { forwardedTo, forwardStatus: 'failed', forwardedAt: null, errorMessage: message };
   }
+}
+
+function buildForwardText(emailId: string, parsed: ParsedInbound): string {
+  const from = parsed.fromName ? `${parsed.fromName} <${parsed.fromEmail}>` : parsed.fromEmail;
+  const attachmentNote = parsed.attachmentsMeta?.length
+    ? `\nAttachments: ${parsed.attachmentsMeta.map((a) => a.filename).join(', ')}\n`
+    : '';
+  const body = parsed.bodyText
+    ?? (parsed.bodyHtml ? htmlToText(parsed.bodyHtml) : '(empty message body)');
+
+  return [
+    'Forwarded inbound email for Latte Lab',
+    `Resend email id: ${emailId}`,
+    `From: ${from}`,
+    `To: ${parsed.toEmail}`,
+    `Subject: ${parsed.subject ?? '(no subject)'}`,
+    attachmentNote.trim(),
+    '--- Original message ---',
+    body,
+  ].filter(Boolean).join('\n');
+}
+
+function buildForwardHtml(emailId: string, parsed: ParsedInbound): string {
+  const from = parsed.fromName ? `${parsed.fromName} <${parsed.fromEmail}>` : parsed.fromEmail;
+  const attachmentNote = parsed.attachmentsMeta?.length
+    ? `<p><strong>Attachments:</strong> ${escapeHtml(parsed.attachmentsMeta.map((a) => a.filename).join(', '))}</p>`
+    : '';
+  const body = parsed.bodyText
+    ? `<pre style="white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace">${escapeHtml(parsed.bodyText)}</pre>`
+    : parsed.bodyHtml
+      ? `<pre style="white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace">${escapeHtml(htmlToText(parsed.bodyHtml))}</pre>`
+      : '<p><em>(empty message body)</em></p>';
+
+  return `
+    <div style="font-family:Arial,sans-serif;color:#171717;line-height:1.5">
+      <p><strong>Forwarded inbound email for Latte Lab</strong></p>
+      <p>
+        <strong>Resend email id:</strong> ${escapeHtml(emailId)}<br />
+        <strong>From:</strong> ${escapeHtml(from)}<br />
+        <strong>To:</strong> ${escapeHtml(parsed.toEmail)}<br />
+        <strong>Subject:</strong> ${escapeHtml(parsed.subject ?? '(no subject)')}
+      </p>
+      ${attachmentNote}
+      <hr />
+      ${body}
+    </div>
+  `;
 }
 
 function toStringArray(value: unknown): string[] {
@@ -400,6 +477,29 @@ function isPlausibleEmail(addr: string): boolean {
 function extractDisplayName(addr: string): string | undefined {
   const m = addr.match(/^\s*"?([^<"]+?)"?\s*</);
   return m ? m[1].trim() : undefined;
+}
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function extractAttachments(value: unknown): AttachmentMeta[] | undefined {

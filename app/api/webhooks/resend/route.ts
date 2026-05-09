@@ -50,6 +50,8 @@ export async function POST(req: NextRequest) {
       'email.delivery_delayed': 'sent',
       'email.bounced': 'bounced',
       'email.complained': 'bounced',
+      'email.failed': 'failed',
+      'email.suppressed': 'failed',
     };
     const outboxStatusMap: Record<string, EmailOutboxStatus> = {
       'email.sent': 'sent',
@@ -57,6 +59,8 @@ export async function POST(req: NextRequest) {
       'email.delivery_delayed': 'sent',
       'email.bounced': 'bounced',
       'email.complained': 'bounced',
+      'email.failed': 'failed',
+      'email.suppressed': 'failed',
     };
 
     const recipientStatus = recipientStatusMap[type];
