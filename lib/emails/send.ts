@@ -276,14 +276,17 @@ async function attemptSend(row: EmailOutbox, options: { alreadyClaimed?: boolean
       'Message-ID': messageId,
     };
 
-    const { data, error } = await resend.emails.send({
-      from: fromAddress(row.template),
-      to: row.recipientEmail,
-      replyTo: replyAddress,
-      subject: row.subject,
-      html,
-      headers,
-    });
+    const { data, error } = await resend.emails.send(
+      {
+        from: fromAddress(row.template),
+        to: row.recipientEmail,
+        replyTo: replyAddress,
+        subject: row.subject,
+        html,
+        headers,
+      },
+      { idempotencyKey: `outbox/${row.id}` },
+    );
 
     if (error) throw new Error(error.message);
 
@@ -411,9 +414,21 @@ export async function retryOutboxRow(rowId: string): Promise<SendResult> {
   // Reset to queued state and try again.
   await db
     .update(emailOutbox)
-    .set({ status: 'queued', lockedAt: null, scheduledFor: new Date(), updatedAt: new Date() })
+    .set({
+      status: 'queued',
+      lockedAt: null,
+      nextAttemptAt: null,
+      scheduledFor: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(emailOutbox.id, rowId));
-  const fresh = { ...row, status: 'queued' as EmailOutboxStatus, scheduledFor: new Date() };
+  const fresh = {
+    ...row,
+    status: 'queued' as EmailOutboxStatus,
+    lockedAt: null,
+    nextAttemptAt: null,
+    scheduledFor: new Date(),
+  };
   return attemptSend(fresh);
 }
 

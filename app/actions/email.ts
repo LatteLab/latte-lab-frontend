@@ -108,9 +108,16 @@ export async function sendEmailBlastAction(blastId: string) {
 
   const replyDomain = process.env.EMAIL_REPLY_DOMAIN || 'lattelab.org';
   const replyTo = `reply+blast-${blastId}@${replyDomain}`;
-  await db.update(emailBlastsTable)
+  const claimed = await db.update(emailBlastsTable)
     .set({ status: 'sending', updatedAt: new Date() })
-    .where(eq(emailBlastsTable.id, blastId));
+    .where(and(
+      eq(emailBlastsTable.id, blastId),
+      inArray(emailBlastsTable.status, ['draft', 'failed']),
+    ))
+    .returning({ id: emailBlastsTable.id });
+  if (claimed.length === 0) {
+    throw new Error('Blast already sent or currently sending');
+  }
 
   try {
     const filters: AudienceFilter = JSON.parse(blast.audienceFilters);

@@ -71,7 +71,6 @@ interface EventPhotoAlbumManagerProps {
 
 function eventHasEnded(event: Event) {
   return new Date(event.endDate ?? event.date) < new Date()
-    || event.status === 'closed'
     || event.status === 'completed'
     || event.status === 'cancelled';
 }
@@ -310,7 +309,7 @@ export function EventPhotoAlbumManager({ event, photos }: EventPhotoAlbumManager
             <Camera className="size-4" />
             <AlertTitle>Before event end</AlertTitle>
             <AlertDescription>
-              Members will only see this album after the event is closed, completed, or past its end time.
+              Members will only see this album after the event is completed, cancelled, or past its end time.
             </AlertDescription>
           </Alert>
         )}

@@ -1554,6 +1554,12 @@ export async function getInvitableUsers(eventId: string) {
 
 const PHOTO_CAPTION_MAX = 200;
 
+function eventHasEndedForAlbum(event: Event) {
+  return new Date(event.endDate ?? event.date) < new Date()
+    || event.status === 'completed'
+    || event.status === 'cancelled';
+}
+
 /**
  * Phase 1 of the direct-upload flow: mint short-lived signed upload URLs so the browser PUTs
  * each file straight to Supabase Storage. The service role key never leaves the server, but
@@ -1663,10 +1669,7 @@ export async function getEventPhotosForViewer(eventId: string) {
   const event = await getEventById(eventId);
   if (!event) throw new Error('Event not found');
 
-  const eventHasEnded = new Date(event.endDate ?? event.date) < new Date()
-    || event.status === 'completed'
-    || event.status === 'cancelled';
-  if (!eventHasEnded) return [];
+  if (!eventHasEndedForAlbum(event)) return [];
 
   if (event.visibility === 'private' && !session.user.isAdmin) {
     const [access, reg] = await Promise.all([
@@ -1694,6 +1697,9 @@ export async function notifyPhotoAlbumAction(eventId: string) {
 
   const event = await getEventById(eventId);
   if (!event) throw new Error('Event not found');
+  if (!eventHasEndedForAlbum(event)) {
+    throw new Error('Photo notifications can only be sent after the event has ended');
+  }
 
   const photos = await dbGetEventPhotos(eventId);
   if (photos.length === 0) throw new Error('No photos uploaded for this event yet');

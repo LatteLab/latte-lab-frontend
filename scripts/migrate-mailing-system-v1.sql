@@ -81,6 +81,10 @@ CREATE TABLE IF NOT EXISTS public.email_outbox (
   updated_at timestamp NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.email_outbox
+  ADD COLUMN IF NOT EXISTS reply_to_inbound_id uuid,
+  ADD COLUMN IF NOT EXISTS extra_headers json;
+
 -- Convert old partial idempotency index to a normal unique constraint so
 -- INSERT ... ON CONFLICT (idempotency_key) works.
 ALTER TABLE public.email_outbox DROP CONSTRAINT IF EXISTS email_outbox_idempotency_key_idx;
